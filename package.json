@@ -1,0 +1,14 @@
+{
+  "name": "earth-geointelligence",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Structure-only geospatial intelligence platform repository",
+  "scripts": {
+    "dev": "TODO: configure workspace development",
+    "test": "TODO: configure workspace tests"
+  },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ]
+}

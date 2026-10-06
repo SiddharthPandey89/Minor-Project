@@ -1,0 +1,14 @@
+node_modules/
+.venv/
+venv/
+__pycache__/
+.env
+*.pyc
+data/raw/*
+data/processed/*
+data/cache/*
+models/trained/*
+models/checkpoints/*
+*.log
+.DS_Store
+.env.example

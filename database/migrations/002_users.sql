@@ -1,0 +1,1 @@
+-- TODO: Define 002_users schema.

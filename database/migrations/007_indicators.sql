@@ -1,0 +1,1 @@
+-- TODO: Define 007_indicators schema.

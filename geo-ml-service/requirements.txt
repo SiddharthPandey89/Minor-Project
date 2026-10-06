@@ -1,0 +1,1 @@
+# Future dependencies: fastapi, geopandas, rasterio, shapely, xarray, numpy, pandas, scikit-learn

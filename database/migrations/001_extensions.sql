@@ -1,0 +1,1 @@
+-- TODO: Define 001_extensions schema.

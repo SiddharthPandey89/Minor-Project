@@ -1,0 +1,15 @@
+{
+  "name": "earth-geointelligence-backend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "TODO: configure backend tests"
+  },
+  "dependencies": {
+    "express": "^5.0.0"
+  },
+  "devDependencies": {}
+}
