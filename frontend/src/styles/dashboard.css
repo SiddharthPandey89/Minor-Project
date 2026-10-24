@@ -1,1 +1,27 @@
-/* TODO: Implement dashboard styles. */
+.search-form { min-width: 0; }
+@media (max-width: 920px) {
+  .workspace-grid { grid-template-columns: 1fr; }
+  .selection-panel { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; }
+  .selection-panel .eyebrow, .selection-panel h2, .selection-panel .selection-copy, .selection-panel .coordinate-box, .selection-panel .privacy-note { grid-column: 1 / -1; }
+  .selection-panel .analyze-button { align-self: end; }
+  .metric-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 640px) {
+  .topbar { height: 65px; padding: 0 5vw; }
+  .topbar__status { display: none; }
+  .dashboard { width: 90vw; padding-top: 46px; }
+  .intro-row { display: block; margin-bottom: 32px; }
+  .intro-meta { margin-top: 28px; }
+  .control-bar { display: block; padding: 16px; }
+  .control-hint { max-width: none; margin-top: 12px; }
+  .map-wrap { height: 390px; }
+  .panel-heading, .map-caption { padding: 16px; }
+  .selection-panel { display: block; padding: 20px; }
+  .metric-grid { grid-template-columns: repeat(2, 1fr); }
+  .metric-card { min-height: 112px; padding: 14px; }
+  .metric-card__label { margin-bottom: 17px; }
+  .metric-card__value { font-size: 1.35rem; }
+  .provenance { display: block; padding: 17px; }
+  .provenance > div + div { margin-top: 15px; }
+}
+

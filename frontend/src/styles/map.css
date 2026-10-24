@@ -1,1 +1,9 @@
-/* TODO: Implement map styles. */
+.earth-map { width: 100%; height: 100%; background: #13283b; }
+.leaflet-container { font-family: 'DM Mono', monospace; }
+.leaflet-tile { filter: saturate(0.65) brightness(0.72) contrast(1.05); }
+.leaflet-control-zoom { border: 1px solid rgba(125, 227, 255, 0.3) !important; }
+.leaflet-control-zoom a { color: #7de3ff !important; background: #0b1b2b !important; border-bottom-color: rgba(125, 227, 255, 0.2) !important; }
+.leaflet-control-attribution { color: #8095aa !important; background: rgba(7, 17, 30, 0.75) !important; }
+.leaflet-control-attribution a { color: #7de3ff !important; }
+.map-overlay { position: absolute; z-index: 500; left: 17px; top: 17px; padding: 8px 10px; color: #a9c2d8; border: 1px solid rgba(125, 227, 255, 0.2); background: rgba(7, 17, 30, 0.75); font: 0.58rem 'DM Mono', monospace; letter-spacing: 0.08em; pointer-events: none; }
+
