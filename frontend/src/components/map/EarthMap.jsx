@@ -1,151 +1,134 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   CircleMarker,
+  LayerGroup,
+  LayersControl,
   MapContainer,
   TileLayer,
+  Tooltip,
   useMap,
   useMapEvents,
 } from 'react-leaflet';
 
-const MAP_LAYERS = {
-  standard: {
-    name: 'Standard',
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '&copy; OpenStreetMap contributors',
-  },
-  satellite: {
-    name: 'Satellite',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attribution:
-      'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics, and other contributors',
-  },
-};
+const SATELLITE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const PLACE_LABELS_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
+const TRANSPORT_LABELS_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}';
+const ESRI_ATTRIBUTION = 'Tiles &copy; Esri, HERE, Garmin, (c) OpenStreetMap contributors, and the GIS user community';
 
 function MapSelection({ onSelect }) {
   useMapEvents({
-    click: ({ latlng }) => {
-      onSelect({
-        latitude: latlng.lat,
-        longitude: latlng.lng,
-      });
-    },
+    click: ({ latlng }) => onSelect({ latitude: latlng.lat, longitude: latlng.lng, zoom: 12 }),
   });
-
   return null;
 }
 
 function FlyToSelection({ location }) {
   const map = useMap();
+  useEffect(() => {
+    if (!location) return;
+    map.flyTo(
+      [location.latitude, location.longitude],
+      Math.min(Math.max(location.zoom || 12, 2), 23),
+      { duration: 0.8, easeLinearity: 0.25 },
+    );
+  }, [location, map]);
+  return null;
+}
+
+function MapViewportSync() {
+  const map = useMap();
 
   useEffect(() => {
-    if (location) {
-      map.flyTo(
-        [location.latitude, location.longitude],
-        Math.max(map.getZoom(), 5),
-        { duration: 0.8 },
-      );
-    }
-  }, [location, map]);
+    const invalidate = () => map.invalidateSize({ pan: false, animate: false });
+    const frame = window.requestAnimationFrame(invalidate);
+    window.addEventListener('resize', invalidate);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', invalidate);
+    };
+  }, [map]);
 
   return null;
 }
 
-function MapLayerControl({ activeLayer, onChange }) {
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 12,
-        right: 12,
-        zIndex: 1000,
-        display: 'flex',
-        gap: 4,
-        padding: 4,
-        borderRadius: 10,
-        background: '#101827',
-        border: '1px solid #334155',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.25)',
-      }}
-      aria-label="Map layer selection"
-    >
-      {Object.entries(MAP_LAYERS).map(([key, layer]) => (
-        <button
-          key={key}
-          type="button"
-          onClick={() => onChange(key)}
-          aria-pressed={activeLayer === key}
-          style={{
-            border: 'none',
-            borderRadius: 7,
-            padding: '9px 12px',
-            cursor: 'pointer',
-            color: '#f8fafc',
-            background: activeLayer === key ? '#2563eb' : 'transparent',
-            fontSize: 12,
-            fontWeight: 600,
-          }}
-        >
-          {key === 'satellite' ? '🛰️ ' : '🗺️ '}
-          {layer.name}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-export default function EarthMap({ selectedLocation, onSelect }) {
-  const [activeLayer, setActiveLayer] = useState('standard');
-  const layer = MAP_LAYERS[activeLayer];
+export default function EarthMap({ selectedLocation, onSelect, language = 'en' }) {
+  const normalLabel = language === 'hi' ? 'सामान्य मानचित्र' : 'Normal Map';
+  const satelliteLabel = language === 'hi' ? 'उपग्रह मानचित्र' : 'Satellite Map';
 
   return (
-    <div
-      style={{
-        position: 'relative',
-        width: '100%',
-        height: '100%',
-        minHeight: 350,
-      }}
+    <MapContainer
+      className="earth-map"
+      center={[20, 0]}
+      zoom={2}
+      minZoom={1}
+      maxZoom={23}
+      scrollWheelZoom
+      wheelDebounceTime={40}
+      wheelPxPerZoomLevel={60}
+      doubleClickZoom
+      touchZoom
+      zoomControl
+      zoomSnap={0.25}
+      zoomDelta={1}
+      zoomAnimation
+      fadeAnimation
+      markerZoomAnimation
+      bounceAtZoomLimits={false}
+      worldCopyJump
+      preferCanvas
+      style={{ width: '100%', height: '100%' }}
     >
-      <MapContainer
-        className="earth-map"
-        center={[20, 0]}
-        zoom={2}
-        minZoom={2}
-        worldCopyJump
-        style={{ width: '100%', height: '100%', minHeight: 350 }}
-      >
-        <TileLayer
-          key={activeLayer}
-          attribution={layer.attribution}
-          url={layer.url}
-          maxZoom={19}
-        />
-
-        <MapSelection onSelect={onSelect} />
-        <FlyToSelection location={selectedLocation} />
-
-        {selectedLocation && (
-          <CircleMarker
-            center={[
-              selectedLocation.latitude,
-              selectedLocation.longitude,
-            ]}
-            radius={9}
-            pathOptions={{
-              color: '#7de3ff',
-              fillColor: '#7de3ff',
-              fillOpacity: 0.85,
-              weight: 3,
-            }}
+      <LayersControl key={language} position="topright">
+        <LayersControl.BaseLayer checked name={normalLabel}>
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            maxNativeZoom={19}
+            maxZoom={23}
           />
-        )}
-      </MapContainer>
-
-      <MapLayerControl
-        activeLayer={activeLayer}
-        onChange={setActiveLayer}
-      />
-    </div>
+        </LayersControl.BaseLayer>
+        <LayersControl.BaseLayer name={satelliteLabel}>
+          <LayerGroup>
+            <TileLayer
+              className="satellite-imagery-tile"
+              attribution={ESRI_ATTRIBUTION}
+              url={SATELLITE_URL}
+              maxNativeZoom={23}
+              maxZoom={23}
+            />
+            <TileLayer
+              className="satellite-label-tile"
+              attribution={ESRI_ATTRIBUTION}
+              url={PLACE_LABELS_URL}
+              maxNativeZoom={23}
+              maxZoom={23}
+              opacity={1}
+            />
+            <TileLayer
+              className="satellite-label-tile"
+              attribution={ESRI_ATTRIBUTION}
+              url={TRANSPORT_LABELS_URL}
+              maxNativeZoom={23}
+              maxZoom={23}
+              opacity={0.9}
+            />
+          </LayerGroup>
+        </LayersControl.BaseLayer>
+      </LayersControl>
+      <MapViewportSync />
+      <MapSelection onSelect={onSelect} />
+      <FlyToSelection location={selectedLocation} />
+      {selectedLocation && (
+        <CircleMarker
+          center={[selectedLocation.latitude, selectedLocation.longitude]}
+          radius={9}
+          pathOptions={{ color: '#7de3ff', fillColor: '#7de3ff', fillOpacity: 0.85, weight: 3 }}
+        >
+          <Tooltip permanent direction="top" offset={[0, -8]}>
+            {selectedLocation.name || `${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`}
+          </Tooltip>
+        </CircleMarker>
+      )}
+    </MapContainer>
   );
 }

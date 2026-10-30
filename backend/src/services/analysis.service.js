@@ -133,4 +133,3 @@ const getWeatherAnalysis = async ({ regionName, latitude, longitude } = {}) => {
 
 export { getWeatherAnalysis };
 export default getWeatherAnalysis;
-
