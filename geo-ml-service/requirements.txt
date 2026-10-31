@@ -1,1 +1,51 @@
 # Future dependencies: fastapi, geopandas, rasterio, shapely, xarray, numpy, pandas, scikit-learn
+# ==========================================
+# EARTH / GEOINTELLIGENCE PLATFORM
+# Python ML Service Dependencies
+# ==========================================
+
+# Backend API Framework
+fastapi
+uvicorn[standard]
+pydantic
+python-dotenv
+
+# Numerical Computing
+numpy
+pandas
+scipy
+
+# Machine Learning
+scikit-learn
+joblib
+
+# Geospatial Processing
+geopandas
+shapely
+pyproj
+rasterio
+xarray
+rioxarray
+
+# Satellite and Earth Observation Data
+pystac-client
+planetary-computer
+stackstac
+
+# HTTP and API Communication
+requests
+httpx
+
+# Database Connectivity
+sqlalchemy
+psycopg[binary]
+
+# Data Validation and Utilities
+python-dateutil
+tqdm
+# Earth GeoIntelligence ML service: runtime dependencies.
+# Only packages imported by the current code are listed.
+# Requires Python 3.10 or newer (uvicorn's minimum).
+
+fastapi~=0.136.3
+uvicorn[standard]~=0.52.4
