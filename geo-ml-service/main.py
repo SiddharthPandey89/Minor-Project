@@ -1,9 +1,7 @@
 """FastAPI entrypoint for the Earth / GeoIntelligence ML service.
 
-This module only wires up the application: configuration, logging, error
-handling and a health endpoint. Analysis endpoints are intentionally not
-defined here yet; they will be added as routers once the backend's request
-and response contracts are confirmed.
+This module wires up the application configuration, logging, error handling,
+health endpoint, and registered API routers.
 
 All environment-based configuration lives in ``app.config``.
 """
@@ -19,6 +17,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
+from app.api.routes.indicators import router as indicators_router
 
 # Validated once at import time; invalid configuration stops startup.
 settings = get_settings()
@@ -27,6 +26,7 @@ logging.basicConfig(
     level=settings.log_level_number,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
+
 logger = logging.getLogger(settings.service_name)
 
 
@@ -52,6 +52,8 @@ app = FastAPI(
     redoc_url="/redoc" if settings.docs_enabled else None,
     openapi_url="/openapi.json" if settings.docs_enabled else None,
 )
+
+app.include_router(indicators_router)
 
 
 @app.exception_handler(Exception)
