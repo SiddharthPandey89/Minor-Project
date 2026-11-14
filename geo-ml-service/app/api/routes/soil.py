@@ -447,8 +447,8 @@ async def analyze_soil(request: SoilAnalysisRequest) -> SoilAnalysisResponse:
         logger.warning("SoilGrids REST soil analysis failed: %s", exc)
 
     # Fall back to the WCS provider when REST is unavailable or returns no data.
+    wcs_error: str | None = None
     if not properties:
-        wcs_error: str | None = None
         try:
             wcs_properties, wcs_source_url = await asyncio.to_thread(
                 _fetch_wcs_properties, request.latitude, request.longitude, request.depth
@@ -461,16 +461,34 @@ async def analyze_soil(request: SoilAnalysisRequest) -> SoilAnalysisResponse:
             logger.warning("SoilGrids WCS soil analysis failed: %s", exc)
 
     if not properties:
-        detail = []
-        if rest_error:
-            detail.append(f"REST: {rest_error}")
-        if wcs_error:
-            detail.append(f"WCS: {wcs_error}")
-        if not detail:
-            detail.append("No valid soil property values were returned.")
-        raise HTTPException(
-            status_code=503,
-            detail="; ".join(detail),
+        if rest_error or wcs_error:
+            detail = []
+            if rest_error:
+                detail.append(f"REST: {rest_error}")
+            if wcs_error:
+                detail.append(f"WCS: {wcs_error}")
+            raise HTTPException(status_code=503, detail="; ".join(detail))
+
+        return SoilAnalysisResponse(
+            data_available=False,
+            location={"latitude": request.latitude, "longitude": request.longitude},
+            depth=request.depth,
+            soil_classification=None,
+            condition_assessment={
+                "status": "insufficient-data",
+                "soil_ph": None,
+                "note": "No valid soil property values were returned by available providers for this coordinate and depth.",
+            },
+            characteristics={},
+            soil_moisture={
+                "status": "unavailable",
+                "reason": "SoilGrids does not provide soil-moisture measurements.",
+            },
+            confidence=None,
+            confidence_note="SoilGrids values are model predictions; no calibrated per-coordinate confidence value was returned.",
+            source_url=source_url,
+            observation_date=None,
+            unavailable_reason="No verified soil property data is available for this location and depth from configured providers.",
         )
 
     return SoilAnalysisResponse(

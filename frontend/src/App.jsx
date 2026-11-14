@@ -492,6 +492,23 @@ function App() {
             </div>
           )}
 
+          {habitability && (habitability.availableIndicators?.soilQuality?.status === 'unavailable' || habitability.availableIndicators?.vegetation?.status === 'unavailable' || habitability.unavailableIndicators?.soilQuality || habitability.unavailableIndicators?.vegetation) && (
+            <div className="panel" style={{ padding: '14px 16px', marginTop: '12px', marginBottom: '12px' }}>
+              {Object.entries({
+                soilQuality: habitability.unavailableIndicators?.soilQuality || habitability.availableIndicators?.soilQuality,
+                vegetation: habitability.unavailableIndicators?.vegetation || habitability.availableIndicators?.vegetation,
+              }).filter(([, indicator]) => indicator?.status === 'unavailable').map(([key, indicator]) => (
+                <div key={key} style={{ marginBottom: '10px' }}>
+                  <strong>{key === 'soilQuality' ? 'Soil' : 'Vegetation'}: </strong>
+                  <span style={{ color: 'var(--muted)' }}>
+                    {indicator.failureType === 'temporary_service_failure' ? 'Temporary service issue — ' : ''}
+                    {indicator.reason || 'Data unavailable for this location.'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {habitabilityLoading && (
             <div className="habitability-empty panel">
               <span className="empty-results__icon">◌</span>

@@ -375,6 +375,7 @@ async def analyze_vegetation(
     bbox, bounds = _region_bbox(request.latitude, request.longitude, request.area_km2)
     item = None
     result = None
+    search_error: VegetationProviderError | None = None
     try:
         item = await asyncio.to_thread(_find_scene, bbox)
         result = await asyncio.to_thread(_compute_ndvi, item, bounds=bounds) if item else None
@@ -383,13 +384,19 @@ async def analyze_vegetation(
             and result is None
             and item.get(SOURCE_KEY) == "Copernicus Data Space Sentinel-2"
         ):
-            item = await asyncio.to_thread(_find_public_scene, bbox)
-            result = (
-                await asyncio.to_thread(_compute_ndvi, item, bounds=bounds)
-                if item
-                else None
-            )
+            try:
+                fallback_item = await asyncio.to_thread(_find_public_scene, bbox)
+            except VegetationProviderError as exc:
+                logger.warning("Public fallback scene search failed after Copernicus processing returned no pixels: %s", exc)
+                fallback_item = None
+            if fallback_item is not None:
+                fallback_result = await asyncio.to_thread(_compute_ndvi, fallback_item, bounds=bounds)
+                if fallback_result is not None:
+                    item = fallback_item
+                    result = fallback_result
     except VegetationProviderError as exc:
+        search_error = exc
+        logger.warning("Vegetation provider/catalog failure: %s", exc)
         if item and item.get(SOURCE_KEY) == "Copernicus Data Space Sentinel-2":
             try:
                 item = await asyncio.to_thread(_find_public_scene, bbox)
@@ -398,16 +405,15 @@ async def analyze_vegetation(
                     if item
                     else None
                 )
+                search_error = None
             except VegetationProviderError:
-                logger.warning(
-                    "Copernicus and fallback vegetation analysis failed: %s", exc
-                )
-                raise HTTPException(status_code=503, detail=str(exc)) from exc
-        else:
-            logger.warning("Vegetation analysis failed: %s", exc)
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
+                pass
+        if search_error is not None and item is None:
+            raise HTTPException(status_code=503, detail=str(search_error)) from search_error
 
     if item is None:
+        if search_error is not None:
+            raise HTTPException(status_code=503, detail=str(search_error)) from search_error
         return VegetationAnalysisResponse(
             data_available=False,
             region={

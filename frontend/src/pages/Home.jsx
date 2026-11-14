@@ -1,1 +1,3 @@
-// TODO: Implement Home.
+﻿import App from '../App.jsx';
+
+export default App;

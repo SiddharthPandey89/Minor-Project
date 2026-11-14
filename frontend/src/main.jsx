@@ -5,11 +5,11 @@ import './styles/global.css';
 import './styles/map.css';
 import './styles/dashboard.css';
 import './styles/responsive.css';
-import App from './App.jsx';
+import './styles/pages.css';
+import AppRoutes from './app/routes.jsx';
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    <AppRoutes />
   </React.StrictMode>,
 );
-
