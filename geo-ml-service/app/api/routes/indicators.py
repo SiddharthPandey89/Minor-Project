@@ -69,6 +69,16 @@ SUPPORTED_INDICATORS: dict[str, IndicatorDefinition] = {
             label="Land characteristics",
             description="Land cover, terrain and related land properties of the region.",
         ),
+        IndicatorDefinition(
+            name="vegetation",
+            label="Vegetation analysis",
+            description="Vegetation indices, vegetation density, and moisture indicators derived from verified spectral imagery.",
+        ),
+        IndicatorDefinition(
+            name="soil",
+            label="Soil analysis",
+            description="Raster-based soil properties such as pH, organic carbon, clay, sand, texture, and bulk density.",
+        ),
     )
 }
 

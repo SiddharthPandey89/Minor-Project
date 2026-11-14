@@ -18,6 +18,8 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.api.routes.indicators import router as indicators_router
+from app.api.routes.soil import router as soil_router
+from app.api.routes.vegetation import router as vegetation_router
 
 # Validated once at import time; invalid configuration stops startup.
 settings = get_settings()
@@ -54,6 +56,8 @@ app = FastAPI(
 )
 
 app.include_router(indicators_router)
+app.include_router(soil_router)
+app.include_router(vegetation_router)
 
 
 @app.exception_handler(Exception)

@@ -63,6 +63,38 @@ const metricLabels = {
   },
 };
 
+const soilLabels = {
+  en: {
+    phh2o: 'Soil pH',
+    soc: 'Soil organic carbon',
+    nitrogen: 'Total nitrogen',
+    sand: 'Sand fraction',
+    silt: 'Silt fraction',
+    clay: 'Clay fraction',
+    bdod: 'Bulk density',
+    cec: 'Cation exchange capacity',
+  },
+  hi: {
+    phh2o: 'मिट्टी का pH',
+    soc: 'मिट्टी का कार्बनिक कार्बन',
+    nitrogen: 'कुल नाइट्रोजन',
+    sand: 'रेत अंश',
+    silt: 'गाद अंश',
+    clay: 'मिट्टी अंश',
+    bdod: 'बल्क घनत्व',
+    cec: 'कैटायन विनिमय क्षमता',
+  },
+};
+
+const ndviTone = (value) => {
+  if (!Number.isFinite(value)) return '#8296aa';
+  if (value < 0) return '#ff9da9';
+  if (value < 0.2) return '#8296aa';
+  if (value < 0.5) return '#7de3ff';
+  if (value < 0.8) return '#bca5ff';
+  return '#71e8a8';
+};
+
 function MetricCard({ label, value, unit, tone = 'cyan' }) {
   return (
     <article className={`metric-card metric-card--${tone}`}>
@@ -276,6 +308,8 @@ function App() {
   const habitabilityCurrent = habitabilityWeather?.data?.current;
   const habitabilityDaily = habitabilityWeather?.data?.daily;
   const habitabilityUnits = habitabilityWeather?.units || {};
+  const habitabilitySoil = habitability?.availableIndicators?.soilQuality;
+  const habitabilityVegetation = habitability?.availableIndicators?.vegetation;
 
   return (
     <div className="app-shell" lang={language}>
@@ -513,6 +547,119 @@ function App() {
                     <MetricCard label={metrics.dailyPrecipitation} value={formatValue(habitabilityDaily?.precipitation)} unit={habitabilityUnits.dailyPrecipitation} />
                   </div>
                   <p className="method-note">{habitabilityWeather.method}</p>
+                </div>
+              )}
+
+              {habitabilitySoil && (
+                <div className="habitability-block panel">
+                  <div className="habitability-block__heading">
+                    <div>
+                      <p className="eyebrow">{text.availableEvidence}</p>
+                      <h3>{language === 'hi' ? 'मिट्टी विश्लेषण' : 'SOIL ANALYSIS'}</h3>
+                    </div>
+                    <span className="indicator-status">{formatStatus(habitabilitySoil.status, language)}</span>
+                  </div>
+                  <div className="soil-properties">
+                    {Object.entries(habitabilitySoil.data.properties || {}).map(([key, property]) => {
+                      if (!Number.isFinite(property.value)) return null;
+                      return (
+                        <MetricCard
+                          key={key}
+                          label={soilLabels[language]?.[key] || formatLabel(key)}
+                          value={formatValue(property.value)}
+                          unit={property.unit}
+                        />
+                      );
+                    })}
+                  </div>
+                  <div className="soil-facts">
+                    <div>
+                      <span className="provenance__label">{language === 'hi' ? 'गहराई' : 'DEPTH'}</span>
+                      <strong>{habitabilitySoil.data.depth}</strong>
+                    </div>
+                    {habitabilitySoil.data.classification && (
+                      <div>
+                        <span className="provenance__label">{language === 'hi' ? 'मिट्टी का प्रकार' : 'SOIL CLASS'}</span>
+                        <strong>{habitabilitySoil.data.classification}</strong>
+                      </div>
+                    )}
+                    <div>
+                      <span className="provenance__label">{language === 'hi' ? 'डेटा प्रदाता' : 'DATA PROVIDER'}</span>
+                      <strong>{habitabilitySoil.provider}</strong>
+                    </div>
+                    <div>
+                      <span className="provenance__label">{language === 'hi' ? 'प्राप्त समय' : 'RETRIEVED'}</span>
+                      <strong>{formatTimestamp(habitabilitySoil.retrievedAt)}</strong>
+                    </div>
+                  </div>
+                  <p className="method-note">{habitabilitySoil.method}</p>
+                </div>
+              )}
+
+              {habitabilityVegetation && (
+                <div className="habitability-block panel">
+                  <div className="habitability-block__heading">
+                    <div>
+                      <p className="eyebrow">{text.availableEvidence}</p>
+                      <h3>{language === 'hi' ? 'स्पेक्ट्रल वनस्पति विश्लेषण' : 'VEGETATION ANALYSIS'}</h3>
+                    </div>
+                    <span className="indicator-status">{formatStatus(habitabilityVegetation.status, language)}</span>
+                  </div>
+                  <div className="vegetation-readout">
+                    <div className="vegetation-ndvi">
+                      <span className="vegetation-ndvi__label">{language === 'hi' ? 'औसत एनडीवीआई' : 'MEAN NDVI'}</span>
+                      <strong className="vegetation-ndvi__value" style={{ color: ndviTone(habitabilityVegetation.data.ndvi.mean) }}>
+                        {formatValue(habitabilityVegetation.data.ndvi.mean)}
+                        <small>{habitabilityVegetation.units.ndvi}</small>
+                      </strong>
+                      <span className="vegetation-ndvi__class">
+                        {habitabilityVegetation.data.vegetation.densityClass || '—'}
+                      </span>
+                    </div>
+                    <div className="vegetation-metrics metric-grid">
+                      <MetricCard
+                        label={language === 'hi' ? 'वनस्पति आच्छादन' : 'VEGETATION COVERAGE'}
+                        value={formatValue(habitabilityVegetation.data.vegetation.coveragePercentage)}
+                        unit="%"
+                      />
+                      <MetricCard
+                        label={language === 'hi' ? 'एनडीवीआई निम्नतम' : 'NDVI MINIMUM'}
+                        value={formatValue(habitabilityVegetation.data.ndvi.minimum)}
+                        unit={habitabilityVegetation.units.ndvi}
+                      />
+                      <MetricCard
+                        label={language === 'hi' ? 'एनडीवीआई अधिकतम' : 'NDVI MAXIMUM'}
+                        value={formatValue(habitabilityVegetation.data.ndvi.maximum)}
+                        unit={habitabilityVegetation.units.ndvi}
+                      />
+                      <MetricCard
+                        label={language === 'hi' ? 'मान्य पिक्सेल' : 'VALID PIXELS'}
+                        value={habitabilityVegetation.data.vegetation.validPixels ?? '—'}
+                        unit=""
+                      />
+                    </div>
+                  </div>
+                  <div className="soil-facts">
+                    <div>
+                      <span className="provenance__label">{language === 'hi' ? 'दृश्य' : 'SCENE'}</span>
+                      <strong>{habitabilityVegetation.data.sceneId || '—'}</strong>
+                    </div>
+                    {habitabilityVegetation.data.observationDate && (
+                      <div>
+                        <span className="provenance__label">{language === 'hi' ? 'अवलोकन तिथि' : 'OBSERVATION DATE'}</span>
+                        <strong>{formatTimestamp(habitabilityVegetation.data.observationDate)}</strong>
+                      </div>
+                    )}
+                    <div>
+                      <span className="provenance__label">{language === 'hi' ? 'डेटा प्रदाता' : 'DATA PROVIDER'}</span>
+                      <strong>{habitabilityVegetation.provider}</strong>
+                    </div>
+                    <div>
+                      <span className="provenance__label">{language === 'hi' ? 'प्राप्त समय' : 'RETRIEVED'}</span>
+                      <strong>{formatTimestamp(habitabilityVegetation.retrievedAt)}</strong>
+                    </div>
+                  </div>
+                  <p className="method-note">{habitabilityVegetation.method}</p>
                 </div>
               )}
 

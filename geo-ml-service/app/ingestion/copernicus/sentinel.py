@@ -33,7 +33,8 @@ class CopernicusSentinelClient:
             payload["query"] = {"eo:cloud_cover": {"lte": cloud_cover_max}}
         endpoint = os.getenv("COPERNICUS_STAC_URL", self.default_endpoint).strip() or self.default_endpoint
         response, source_url = request_json(endpoint, provider=self.provider_name, method="POST", payload=payload,
-                                            headers=bearer_headers("COPERNICUS_ACCESS_TOKEN"))
+                                            headers=bearer_headers("COPERNICUS_ACCESS_TOKEN"),
+                                            timeout=12.0, retries=0)
         if not isinstance(response, dict) or not isinstance(response.get("features"), list):
             raise InvalidQueryError("Copernicus STAC returned an invalid FeatureCollection.")
         records = tuple(feature for feature in response["features"] if isinstance(feature, dict))

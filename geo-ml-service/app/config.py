@@ -18,6 +18,11 @@ import logging
 import os
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
 
 SERVICE_NAME = "earth-geointelligence-ml-service"
 SERVICE_VERSION = "0.1.0"

@@ -29,11 +29,15 @@ class RasterStatistics:
     mean: float
     minimum: float
     maximum: float
-    standard_deviation: float
+    standard_deviation: float = 0.0
+    median: float = 0.0
+    valid_pixel_percentage: float = 0.0
 
     def as_dict(self) -> dict[str, object]:
         """Return a JSON-serializable representation."""
-        return asdict(self)
+        payload = asdict(self)
+        payload["valid_pixel_percentage"] = float(self.valid_pixel_percentage)
+        return payload
 
 
 @dataclass(frozen=True)
@@ -111,6 +115,7 @@ def statistics_from_values(
     if total_pixel_count < values.size:
         raise IndicatorDataError("Valid pixel count cannot exceed total pixel count.")
 
+    valid_pixel_percentage = 100.0 * values.size / total_pixel_count if total_pixel_count else 0.0
     return RasterStatistics(
         indicator=indicator,
         source=source,
@@ -122,6 +127,8 @@ def statistics_from_values(
         minimum=float(np.min(values)),
         maximum=float(np.max(values)),
         standard_deviation=float(np.std(values, ddof=0)),
+        median=float(np.median(values)),
+        valid_pixel_percentage=float(valid_pixel_percentage),
     )
 
 

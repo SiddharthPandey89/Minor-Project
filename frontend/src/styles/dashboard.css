@@ -25,6 +25,16 @@
 .source-list__item { padding: 12px 0; border-top: 1px solid var(--line); }
 .source-list__item span, .source-list__item small { display: block; margin-top: 5px; color: var(--muted); font: 0.65rem 'DM Mono', monospace; overflow-wrap: anywhere; }
 .limitations-list { margin: 18px 0 0; padding: 16px 0 0 17px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.72rem; line-height: 1.6; }
+.soil-properties { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.soil-facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 12px; }
+.soil-facts > div { display: flex; flex-direction: column; gap: 4px; }
+.vegetation-readout { display: flex; align-items: end; gap: 22px; margin-bottom: 14px; flex-wrap: wrap; }
+.vegetation-ndvi { display: flex; flex-direction: column; gap: 6px; min-width: 150px; }
+.vegetation-ndvi__label { color: var(--muted); font: 0.65rem 'DM Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase; }
+.vegetation-ndvi__value { font: 2.2rem 'DM Mono', monospace; }
+.vegetation-ndvi__value small { margin-left: 6px; color: var(--muted); font-size: 0.7rem; }
+.vegetation-ndvi__class { color: #71e8a8; font: 0.7rem 'DM Mono', monospace; text-transform: uppercase; margin-top: 2px; }
+.vegetation-metrics { margin-top: 10px; }
 @media (max-width: 920px) {
   .workspace-grid { grid-template-columns: 1fr; }
   .selection-panel { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; }
@@ -48,6 +58,7 @@
   .metric-card { min-height: 112px; padding: 14px; }
   .metric-card__label { margin-bottom: 17px; }
   .metric-card__value { font-size: 1.35rem; }
+  .soil-properties, .soil-facts { grid-template-columns: repeat(2, 1fr); }
   .provenance { display: block; padding: 17px; }
   .provenance > div + div { margin-top: 15px; }
   .habitability-summary__facts { grid-template-columns: 1fr; gap: 13px; }

@@ -12,3 +12,4 @@ models/checkpoints/*
 *.log
 .DS_Store
 .env.example
+!.env.example
