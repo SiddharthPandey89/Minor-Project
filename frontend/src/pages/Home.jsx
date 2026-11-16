@@ -1,3 +1,3 @@
-﻿import App from '../App.jsx';
+﻿import Dashboard from './Dashboard.jsx';
 
-export default App;
+export default Dashboard;

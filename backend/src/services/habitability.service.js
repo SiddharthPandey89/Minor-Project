@@ -7,10 +7,58 @@ const OPEN_METEO_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 const ML_SERVICE_URL = String(config.ML_SERVICE_URL || 'http://localhost:8000').replace(/\/$/, '');
 const SOIL_ANALYZE_URL = `${ML_SERVICE_URL}/api/v1/soil/analyze`;
 const VEGETATION_ANALYZE_URL = `${ML_SERVICE_URL}/api/v1/vegetation/analyze`;
+const ML_HABITABILITY_ASSESS_URL = `${ML_SERVICE_URL}/api/v1/habitability/assess`;
 const ML_REQUEST_TIMEOUT_MS = 30000;
+const ML_SOIL_TIMEOUT_MS = 90000;
+const ML_VEGETATION_TIMEOUT_MS = 120000;
+const ML_HABITABILITY_TIMEOUT_MS = 120000;
 const ML_RETRY_DELAYS_MS = [500, 1500];
 const DEFAULT_SOIL_DEPTH = '0-5cm';
 const DEFAULT_VEGETATION_AREA_KM2 = 1.0;
+
+// --- Result caching and deduplication ---------------------------------------
+
+const CACHE_TTL_MS = 300000; // 5 minutes
+const soilCache = new Map();
+const vegetationCache = new Map();
+const inFlightRequests = new Map();
+
+const cacheKey = (kind, latitude, longitude, extra = '') =>
+  `${kind}|${latitude.toFixed(4)}|${longitude.toFixed(4)}|${extra}`;
+
+const getCached = (cache, key) => {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.value;
+};
+
+const setCached = (cache, key, value) => {
+  cache.set(key, { value, timestamp: Date.now() });
+};
+
+const withDedupAndCache = async (kind, key, factory, bypassCache = false) => {
+  // Return cached result if available, unless bypassing cache for retry.
+  if (!bypassCache) {
+    const cached = getCached(kind === 'soil' ? soilCache : vegetationCache, key);
+    if (cached !== null) return cached;
+  }
+
+  // Return in-flight result if the same request is already being processed.
+  const inFlight = inFlightRequests.get(key);
+  if (inFlight) return inFlight;
+
+  const promise = factory().finally(() => {
+    inFlightRequests.delete(key);
+  });
+  inFlightRequests.set(key, promise);
+  const result = await promise;
+  setCached(kind === 'soil' ? soilCache : vegetationCache, key, result);
+  return result;
+};
 
 const toCoordinate = (value, name, minimum, maximum) => {
   if (
@@ -74,11 +122,11 @@ const sanitizeUpstreamError = (payload, fallback) => {
 
 const shouldRetryStatus = (status) => status === 408 || status === 429 || status >= 500;
 
-const postJson = async (url, body, { serviceName = 'ML service' } = {}) => {
+const postJson = async (url, body, { serviceName = 'ML service', timeoutMs = ML_REQUEST_TIMEOUT_MS } = {}) => {
   let lastError;
   for (let attempt = 0; attempt <= ML_RETRY_DELAYS_MS.length; attempt += 1) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), ML_REQUEST_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -163,14 +211,18 @@ const postJson = async (url, body, { serviceName = 'ML service' } = {}) => {
   throw lastError || createServiceError(`${serviceName} request failed.`, 502);
 };
 
-const buildSoilIndicator = async (latitude, longitude) => {
+const buildSoilIndicator = async (latitude, longitude, retry = false) => {
+  const key = cacheKey('soil', latitude, longitude, DEFAULT_SOIL_DEPTH);
   let payload;
   try {
-    payload = await postJson(SOIL_ANALYZE_URL, {
-      latitude,
-      longitude,
-      depth: DEFAULT_SOIL_DEPTH,
-    }, { serviceName: 'Soil analysis service' });
+    payload = await withDedupAndCache('soil', key, async () =>
+      postJson(SOIL_ANALYZE_URL, {
+        latitude,
+        longitude,
+        depth: DEFAULT_SOIL_DEPTH,
+        bypass_cache: retry,
+      }, { serviceName: 'Soil analysis service', timeoutMs: ML_SOIL_TIMEOUT_MS })
+    , retry);
   } catch (error) {
     return unavailableIndicator(userFacingFailureReason('Soil data', error), {
       failureType: classifyMlFailure(error),
@@ -235,14 +287,18 @@ const buildSoilIndicator = async (latitude, longitude) => {
   };
 };
 
-const buildVegetationIndicator = async (latitude, longitude) => {
+const buildVegetationIndicator = async (latitude, longitude, retry = false) => {
+  const key = cacheKey('vegetation', latitude, longitude, DEFAULT_VEGETATION_AREA_KM2);
   let payload;
   try {
-    payload = await postJson(VEGETATION_ANALYZE_URL, {
-      latitude,
-      longitude,
-      area_km2: DEFAULT_VEGETATION_AREA_KM2,
-    }, { serviceName: 'Vegetation analysis service' });
+    payload = await withDedupAndCache('vegetation', key, async () =>
+      postJson(VEGETATION_ANALYZE_URL, {
+        latitude,
+        longitude,
+        area_km2: DEFAULT_VEGETATION_AREA_KM2,
+        bypass_cache: retry,
+      }, { serviceName: 'Vegetation analysis service', timeoutMs: ML_VEGETATION_TIMEOUT_MS })
+    , retry);
   } catch (error) {
     return unavailableIndicator(userFacingFailureReason('Vegetation data', error), {
       failureType: classifyMlFailure(error),
@@ -303,7 +359,7 @@ const buildVegetationIndicator = async (latitude, longitude) => {
   };
 };
 
-const getHabitabilityAnalysis = async ({ regionName, latitude, longitude } = {}) => {
+const getHabitabilityAnalysis = async ({ regionName, latitude, longitude, retryModules = [] } = {}) => {
   if (typeof regionName !== 'string' || regionName.trim().length === 0) {
     throw new BadRequestError('regionName is required.');
   }
@@ -341,9 +397,12 @@ const getHabitabilityAnalysis = async ({ regionName, latitude, longitude } = {})
     },
   ];
 
+  const retrySoil = retryModules.includes('soil');
+  const retryVegetation = retryModules.includes('vegetation');
+
   const [soilSettled, vegetationSettled] = await Promise.allSettled([
-    buildSoilIndicator(validLatitude, validLongitude),
-    buildVegetationIndicator(validLatitude, validLongitude),
+    buildSoilIndicator(validLatitude, validLongitude, retrySoil),
+    buildVegetationIndicator(validLatitude, validLongitude, retryVegetation),
   ]);
 
   const soilResult = soilSettled.status === 'fulfilled'
@@ -384,6 +443,53 @@ const getHabitabilityAnalysis = async ({ regionName, latitude, longitude } = {})
 
   const soilOk = soilResult.status === 'available';
   const vegOk = vegetationResult.status === 'available';
+
+  // Build indicator evidence and direct factor inputs for the ML habitability
+  // scoring model. Only real retrieved evidence is passed; nothing is estimated.
+  const indicatorEvidence = [];
+  const directFactors = {};
+
+  const weatherCurrent = weather.analysis?.current;
+  const weatherDaily = weather.analysis?.daily;
+  if (weatherCurrent != null && typeof weatherCurrent.temperature === 'number') {
+    indicatorEvidence.push({
+      indicator: 'temperature',
+      status: 'available',
+      value: weatherCurrent.temperature,
+      unit: weather.units?.temperature || '\u00B0C',
+      source: weather.dataProvider,
+    });
+    directFactors.temperature = {
+      mean_c: weatherCurrent.temperature,
+      min_c: weatherDaily?.minimumTemperature ?? null,
+      max_c: weatherDaily?.maximumTemperature ?? null,
+    };
+  }
+
+  let mlAssessment = null;
+  let mlError = null;
+
+  try {
+    const mlPayload = await postJson(ML_HABITABILITY_ASSESS_URL, {
+      latitude: validLatitude,
+      longitude: validLongitude,
+      region_name: regionName.trim(),
+      indicators: indicatorEvidence,
+      factors: directFactors,
+    }, { serviceName: 'Habitability ML service', timeoutMs: ML_HABITABILITY_TIMEOUT_MS });
+
+    if (mlPayload && mlPayload.success === true) {
+      mlAssessment = mlPayload.assessment || mlPayload;
+    } else {
+      mlError = (mlPayload && mlPayload.message) || 'ML habitability assessment returned an unsuccessful response.';
+    }
+  } catch (mlError_) {
+    mlError = mlError_?.message || 'Habitability ML service is unavailable.';
+    if (mlError_?.statusCode >= 500 || mlError_?.transient === true) {
+      mlError = `Habitability ML service temporarily unavailable: ${mlError}`;
+    }
+  }
+
   let explanation = 'Habitability is not determined because the verified inputs are limited to weather observations and forecasts.';
   if (soilOk && vegOk) {
     explanation = 'Habitability is not numerically determined, but weather, soil, and vegetation evidence are available for this location. Review indicator coverage, data gaps, and limitations before interpretation.';
@@ -391,27 +497,51 @@ const getHabitabilityAnalysis = async ({ regionName, latitude, longitude } = {})
     explanation = 'Habitability is not numerically determined. Partial environmental evidence is available; missing soil or vegetation indicators are reported with reasons and should be treated as data gaps.';
   }
 
-  const limitations = [
+  const mlExplanation = mlAssessment && Array.isArray(mlAssessment.reasons) && mlAssessment.reasons.length > 0
+    ? mlAssessment.reasons.join('; ')
+    : '';
+  const combinedExplanation = mlExplanation
+    ? `${explanation} ML scoring: ${mlExplanation}.`
+    : explanation;
+
+  const baseLimitations = [
     'Weather measurements alone cannot scientifically establish habitability.',
-    'No numerical habitability score is produced from the currently available data.',
     'Unavailable indicators are not estimated, imputed, or replaced with sample values.',
     'Soil and vegetation analyses run independently; one provider failure does not block the other result.',
     'Temporary upstream/provider failures are distinguished from genuine data unavailability where reported by services.',
     'A future assessment requires additional verified datasets, documented methods, and uncertainty analysis.',
   ];
 
+  const extendedLimitations = [
+    ...baseLimitations,
+    ...(mlAssessment && Array.isArray(mlAssessment.limitations) ? mlAssessment.limitations : []),
+  ];
+  if (mlError) {
+    extendedLimitations.push(`ML scoring: ${mlError}`);
+  }
+
   return {
     region: weather.region,
     assessment: {
-      status: soilOk || vegOk ? 'partial-data' : 'insufficient-data',
-      score: null,
-      conclusion: null,
-      explanation,
+      status: mlAssessment ? mlAssessment.status : (soilOk || vegOk ? 'partial-data' : 'insufficient-data'),
+      score: mlAssessment ? mlAssessment.score : null,
+      category: mlAssessment ? mlAssessment.category : null,
+      confidence: mlAssessment ? mlAssessment.confidence : null,
+      conclusion: mlAssessment && typeof mlAssessment.category === 'string'
+        ? `${mlAssessment.category} habitability`
+        : null,
+      coverage: mlAssessment ? mlAssessment.coverage : null,
+      limitingFactor: mlAssessment ? mlAssessment.limiting_factor : null,
+      capApplied: mlAssessment ? mlAssessment.cap_applied : false,
+      factors: mlAssessment ? mlAssessment.factors : null,
+      unavailableFactors: mlAssessment ? mlAssessment.unavailable_factors : [],
+      explanation: combinedExplanation,
     },
     availableIndicators,
     unavailableIndicators,
     sources,
-    limitations,
+    limitations: extendedLimitations,
+    mlAssessmentError: mlError,
     retrievedAt: weather.retrievedAt,
   };
 };

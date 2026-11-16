@@ -111,11 +111,11 @@ export async function requestWeatherAnalysis({ regionName, latitude, longitude }
   return readJson(response);
 }
 
-export async function requestHabitabilityAnalysis({ regionName, latitude, longitude }) {
+export async function requestHabitabilityAnalysis({ regionName, latitude, longitude, retryModules = [] }) {
   const response = await fetch(`${API_BASE_URL}/api/habitability`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ regionName, latitude, longitude }),
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ regionName, latitude, longitude, retryModules }),
   });
   const payload = await readJson(response, 'The habitability analysis request failed.');
 

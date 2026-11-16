@@ -17,6 +17,7 @@ router.post('/', async (req, res) => {
       regionName: body.regionName,
       latitude: body.latitude,
       longitude: body.longitude,
+      retryModules: Array.isArray(body.retryModules) ? body.retryModules : [],
     });
 
     sendSuccess(res, result);

@@ -4,6 +4,8 @@ import Loader from '../common/Loader.jsx';
 import ErrorMessage from '../common/ErrorMessage.jsx';
 import EmptyState from '../common/EmptyState.jsx';
 import MetricCard from '../dashboard/MetricCard.jsx';
+import SuitabilityScore from './SuitabilityScore.jsx';
+import FactorBreakdown from './FactorBreakdown.jsx';
 import { formatLabel, formatStatus, formatTimestamp, formatValue } from '../../utils/formatters.js';
 import { ndviTone } from '../../utils/units.js';
 
@@ -79,6 +81,7 @@ export default function HabitabilityPanel({
   className = '',
 }) {
   const assessment = isPlainObject(habitability?.assessment) ? habitability.assessment : null;
+  const factors = isPlainObject(assessment?.factors) ? assessment.factors : null;
   const region = isPlainObject(habitability?.region) ? habitability.region : null;
   const availableEntries = getIndicatorEntries(habitability?.availableIndicators);
   const unavailableEntries = getIndicatorEntries(habitability?.unavailableIndicators);
@@ -167,6 +170,7 @@ export default function HabitabilityPanel({
                   <strong>{availableEntries.length} available · {unavailableEntries.length} unavailable</strong>
                 </div>
               </div>
+              <SuitabilityScore assessment={assessment} />
               <p className="habitability-explanation">
                 {assessment?.explanation || 'No assessment explanation was provided by the habitability service.'}
               </p>
@@ -271,6 +275,12 @@ export default function HabitabilityPanel({
                   {vegetation.retrievedAt && <div><span className="provenance__label">RETRIEVED</span><strong>{formatTimestamp(vegetation.retrievedAt)}</strong></div>}
                 </div>
                 {vegetation.method && <p className="method-note">{vegetation.method}</p>}
+              </FactorSection>
+            )}
+
+            {factors && (
+              <FactorSection eyebrow="SCORING FACTORS" title="Habitability factor scores">
+                <FactorBreakdown factors={factors} />
               </FactorSection>
             )}
 

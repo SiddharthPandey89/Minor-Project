@@ -7,13 +7,21 @@ from fastapi import HTTPException
 from app.api.routes.soil import (
     SoilAnalysisRequest,
     SoilProperty,
-    SoilProviderError,
-    _read_properties,
     analyze_soil,
+)
+from app.intelligence.evidence import (
+    DATA_TYPE_MODELLED,
+    REASON_NO_COVERAGE,
+    REASON_PROVIDER_OUTAGE,
+)
+from app.intelligence.fallbacks import (
+    OpenLandMapAdapter,
+    SoilGridsRestAdapter,
+    SoilGridsWcsAdapter,
 )
 
 
-def _soilgrids_payload(*, include_properties=True):
+def _rest_payload(*, include_properties=True):
     layers = []
     if include_properties:
         for name, value, units, factor in (
@@ -24,27 +32,29 @@ def _soilgrids_payload(*, include_properties=True):
         ):
             layers.append({
                 "name": name,
-                "unit_measure": {
-                    "mapped_units": units,
-                    "target_units": units,
-                    "d_factor": factor,
-                },
                 "depths": [{"label": "0-5cm", "values": {"mean": value}}],
             })
     return {"properties": {"layers": layers}}
 
 
 class SoilAnalysisTests(TestCase):
-    def test_reads_scaled_provider_values_and_classifies_only_available_texture(self):
-        properties = _read_properties(_soilgrids_payload(), "0-5cm")
-
-        self.assertEqual(properties["phh2o"].value, 6.8)
-        self.assertEqual(properties["phh2o"].unit, "pH")
-
     def test_analyze_returns_real_properties_and_marks_unsupported_moisture(self):
-        with patch(
-            "app.api.routes.soil._fetch_soilgrids",
-            return_value=(_soilgrids_payload(), "https://soilgrids.invalid/query"),
+        with patch.object(
+            SoilGridsRestAdapter, "query",
+            return_value=_evidence(
+                provider="ISRIC SoilGrids REST",
+                data_available=True,
+                value=6.8,
+                unit="pH",
+                extra={
+                    "properties": {
+                        "phh2o": {"value": 6.8, "unit": "pH", "source_property": "phh2o", "provider": "ISRIC SoilGrids REST"},
+                        "sand": {"value": 40.0, "unit": "%", "source_property": "sand", "provider": "ISRIC SoilGrids REST"},
+                        "silt": {"value": 40.0, "unit": "%", "source_property": "silt", "provider": "ISRIC SoilGrids REST"},
+                        "clay": {"value": 20.0, "unit": "%", "source_property": "clay", "provider": "ISRIC SoilGrids REST"},
+                    }
+                },
+            ),
         ):
             result = asyncio.run(analyze_soil(SoilAnalysisRequest(latitude=23.2, longitude=77.4)))
 
@@ -55,26 +65,65 @@ class SoilAnalysisTests(TestCase):
         self.assertIsNone(result.confidence)
         self.assertEqual(result.location["latitude"], 23.2)
 
-    def test_analyze_reports_unavailable_when_both_providers_have_no_data(self):
-        with patch(
-            "app.api.routes.soil._fetch_soilgrids",
-            return_value=(_soilgrids_payload(include_properties=False), "https://soilgrids.invalid/query"),
-        ), patch(
-            "app.api.routes.soil._fetch_wcs_properties",
-            side_effect=SoilProviderError("No valid soil property values."),
+    def test_analyze_reports_unavailable_when_all_providers_have_no_data(self):
+        with patch.object(
+            SoilGridsRestAdapter, "query",
+            return_value=_evidence(
+                provider="ISRIC SoilGrids REST",
+                data_available=False,
+                reason_code=REASON_NO_COVERAGE,
+                unavailable_reason="SoilGrids has no verified property data for this coordinate and depth (coverage gap).",
+            ),
+        ), patch.object(
+            SoilGridsWcsAdapter, "query",
+            return_value=_evidence(
+                provider="ISRIC SoilGrids WCS",
+                data_available=False,
+                reason_code=REASON_NO_COVERAGE,
+                unavailable_reason="SoilGrids WCS has no verified property data for this coordinate and depth (coverage gap).",
+            ),
+        ), patch.object(
+            OpenLandMapAdapter, "query",
+            return_value=_evidence(
+                provider="OpenLandMap",
+                data_available=False,
+                reason_code=REASON_NO_COVERAGE,
+                unavailable_reason="OpenLandMap has no verified soil data for this coordinate (coverage gap).",
+            ),
         ):
-            with self.assertRaises(HTTPException) as raised:
-                asyncio.run(analyze_soil(SoilAnalysisRequest(latitude=23.2, longitude=77.4)))
+            result = asyncio.run(analyze_soil(SoilAnalysisRequest(latitude=23.2, longitude=77.4)))
 
-        self.assertEqual(raised.exception.status_code, 503)
+        self.assertFalse(result.data_available)
+        self.assertEqual(
+            result.unavailable_reason,
+            "SoilGrids has no verified property data for this coordinate and depth (coverage gap).",
+        )
 
     def test_provider_failure_is_reported_as_service_unavailable(self):
-        with patch(
-            "app.api.routes.soil._fetch_soilgrids",
-            side_effect=SoilProviderError("SoilGrids could not be reached or timed out."),
-        ), patch(
-            "app.api.routes.soil._fetch_wcs_properties",
-            side_effect=SoilProviderError("SoilGrids WCS could not be reached."),
+        with patch.object(
+            SoilGridsRestAdapter, "query",
+            return_value=_evidence(
+                provider="ISRIC SoilGrids REST",
+                data_available=False,
+                reason_code=REASON_PROVIDER_OUTAGE,
+                unavailable_reason="SoilGrids could not be reached or timed out.",
+            ),
+        ), patch.object(
+            SoilGridsWcsAdapter, "query",
+            return_value=_evidence(
+                provider="ISRIC SoilGrids WCS",
+                data_available=False,
+                reason_code=REASON_PROVIDER_OUTAGE,
+                unavailable_reason="SoilGrids WCS could not be reached.",
+            ),
+        ), patch.object(
+            OpenLandMapAdapter, "query",
+            return_value=_evidence(
+                provider="OpenLandMap",
+                data_available=False,
+                reason_code=REASON_PROVIDER_OUTAGE,
+                unavailable_reason="OpenLandMap could not be reached.",
+            ),
         ):
             with self.assertRaises(HTTPException) as raised:
                 asyncio.run(analyze_soil(SoilAnalysisRequest(latitude=23.2, longitude=77.4)))
@@ -83,17 +132,28 @@ class SoilAnalysisTests(TestCase):
 
     def test_wcs_fallback_returns_real_properties_when_rest_fails(self):
         wcs_properties = {
-            "phh2o": SoilProperty(value=7.1, unit="pH", depth="0-5cm", source_property="phh2o"),
-            "sand": SoilProperty(value=25.7, unit="%", depth="0-5cm", source_property="sand"),
-            "silt": SoilProperty(value=33.4, unit="%", depth="0-5cm", source_property="silt"),
-            "clay": SoilProperty(value=40.8, unit="%", depth="0-5cm", source_property="clay"),
+            "phh2o": {"value": 7.1, "unit": "pH", "source_property": "phh2o", "provider": "ISRIC SoilGrids WCS"},
+            "sand": {"value": 25.7, "unit": "%", "source_property": "sand", "provider": "ISRIC SoilGrids WCS"},
+            "silt": {"value": 33.4, "unit": "%", "source_property": "silt", "provider": "ISRIC SoilGrids WCS"},
+            "clay": {"value": 40.8, "unit": "%", "source_property": "clay", "provider": "ISRIC SoilGrids WCS"},
         }
-        with patch(
-            "app.api.routes.soil._fetch_soilgrids",
-            side_effect=SoilProviderError("REST paused."),
-        ), patch(
-            "app.api.routes.soil._fetch_wcs_properties",
-            return_value=(wcs_properties, "https://maps.isric.org/mapserv?..."),
+        with patch.object(
+            SoilGridsRestAdapter, "query",
+            return_value=_evidence(
+                provider="ISRIC SoilGrids REST",
+                data_available=False,
+                reason_code=REASON_PROVIDER_OUTAGE,
+                unavailable_reason="REST paused.",
+            ),
+        ), patch.object(
+            SoilGridsWcsAdapter, "query",
+            return_value=_evidence(
+                provider="ISRIC SoilGrids WCS",
+                data_available=True,
+                value=7.1,
+                unit="pH",
+                extra={"properties": wcs_properties},
+            ),
         ):
             result = asyncio.run(analyze_soil(SoilAnalysisRequest(latitude=23.2599, longitude=77.4126)))
 
@@ -117,3 +177,20 @@ class SoilAnalysisTests(TestCase):
     def test_rejects_out_of_range_coordinates(self):
         with self.assertRaises(ValueError):
             SoilAnalysisRequest(latitude=91, longitude=77)
+
+
+def _evidence(*, provider, data_available, value=None, unit=None,
+              reason_code=None, unavailable_reason=None, extra=None):
+    from app.intelligence.evidence import EvidenceResult, DATA_TYPE_MODELLED
+    return EvidenceResult(
+        provider=provider,
+        dataset="ISRIC SoilGrids 2.0",
+        data_type=DATA_TYPE_MODELLED,
+        resolution_m=250,
+        value=value,
+        unit=unit,
+        data_available=data_available,
+        reason_code=reason_code,
+        unavailable_reason=unavailable_reason,
+        extra=extra or {},
+    )

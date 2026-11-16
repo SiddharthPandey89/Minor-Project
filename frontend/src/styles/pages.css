@@ -6,17 +6,45 @@
 .dashboard-toolbar__search { position: relative; }
 .dashboard-toolbar__actions { display: grid; gap: 8px; }
 .dashboard-toolbar__hint { margin: 4px 0 0; color: var(--muted); font-size: 0.75rem; line-height: 1.5; }
-.dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.85fr); gap: 18px; align-items: start; }
-.dashboard-grid__map .panel-heading { padding: 18px 20px; }
-.dashboard-map-wrap { height: 520px; }
-.dashboard-grid__side { min-width: 0; }
-.dashboard-panel-stack { display: grid; gap: 16px; }
+.dashboard-layout { display: flex; gap: 0; min-height: calc(100vh - 76px); }
+.dashboard-sidebar { position: fixed; top: 76px; left: 0; width: 260px; height: calc(100vh - 76px); background: linear-gradient(145deg, rgba(12, 26, 43, 0.95), rgba(7, 17, 30, 0.95)); border-right: 1px solid var(--line); z-index: 100; display: flex; flex-direction: column; overflow-y: auto; scroll-behavior: smooth; transition: transform 0.3s ease; }
+.dashboard-sidebar__header { padding: 24px 22px; border-bottom: 1px solid var(--line); }
+.dashboard-sidebar__brand { display: block; font: 700 1.15rem 'Manrope', sans-serif; letter-spacing: -0.02em; color: #e9f2fb; }
+.dashboard-sidebar__sub { display: block; font: 0.62rem 'DM Mono', monospace; letter-spacing: 0.15em; color: var(--muted); margin-top: 4px; text-transform: uppercase; }
+.dashboard-sidebar__nav { flex: 1; padding: 20px 16px; overflow-y: auto; }
+.dashboard-sidebar__nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dashboard-sidebar__item { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: 0.72rem 'DM Mono', monospace; letter-spacing: 0.05em; text-align: left; cursor: pointer; transition: all 0.2s ease; }
+.dashboard-sidebar__item:hover { background: rgba(125, 227, 255, 0.08); color: #e9f2fb; }
+.dashboard-sidebar__item.is-active { background: linear-gradient(90deg, rgba(125, 227, 255, 0.15), transparent); color: var(--cyan); border-left: 3px solid var(--cyan); padding-left: 13px; }
+.dashboard-sidebar__icon { font-size: 1.15rem; width: 24px; text-align: center; }
+.dashboard-sidebar__footer { padding: 18px 22px; border-top: 1px solid var(--line); font-size: 0; }
+.dashboard-sidebar__footer .status-dot { margin-right: 8px; }
+.dashboard-sidebar__status { font: 0.62rem 'DM Mono', monospace; color: var(--muted); letter-spacing: 0.03em; }
+.dashboard-sidebar--mobile { transform: translateX(-100%); z-index: 200; }
+.dashboard-sidebar--mobile.dashboard-sidebar { transform: translateX(-100%); }
+.dashboard-sidebar.is-open { transform: translateX(0); }
+.dashboard-sidebar.dashboard-sidebar--mobile.is-open { transform: translateX(0); }
+.dashboard-sidebar__toggle-mobile { display: none; position: fixed; top: 86px; left: 16px; z-index: 210; background: rgba(12, 26, 43, 0.95); border: 1px solid var(--line); border-radius: 6px; width: 36px; height: 36px; padding: 0; cursor: pointer; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.dashboard-sidebar__toggle-mobile span { display: block; width: 18px; height: 2px; background: #e9f2fb; border-radius: 1px; }
+
+.dashboard-main { flex: 1; margin-left: 260px; min-width: 0; overflow-y: auto; padding-bottom: 40px; }
+.dashboard-main::-webkit-scrollbar { width: 8px; }
+.dashboard-main::-webkit-scrollbar-track { background: transparent; }
+.dashboard-main::-webkit-scrollbar-thumb { background: rgba(125, 227, 255, 0.15); border-radius: 4px; }
+
+.dashboard-section { margin-bottom: 24px; scroll-margin-top: 90px; border: 1px solid var(--line); background: linear-gradient(145deg, rgba(16, 31, 50, 0.92), rgba(10, 23, 38, 0.92)); box-shadow: 0 18px 60px rgba(0, 0, 0, 0.14); border-radius: 10px; overflow: hidden; }
+.dashboard-section__header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--line); }
+.dashboard-section__header .eyebrow { margin: 0; }
+.dashboard-section__header h2 { margin: 0; font-size: 1.35rem; letter-spacing: -0.04em; color: #e9f2fb; }
+.dashboard-section__body { padding: 24px; }
+
+.dashboard-panel-stack { display: flex; flex-direction: column; gap: 20px; }
 .dashboard-card .panel-heading h2 { font-size: 1.15rem; }
 .dashboard-card .panel-body { padding: 18px 20px; }
 .dashboard-run-button { margin-top: 12px; }
 .dashboard-alert-stack { display: grid; gap: 12px; }
-.dashboard-metric-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.soil-metric-grid { grid-template-columns: repeat(2, 1fr); }
+.dashboard-metric-grid { grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.soil-metric-grid { grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .dashboard-provenance { grid-template-columns: 1fr; gap: 12px; margin-top: 14px; }
 .dashboard-habitability-summary { margin-bottom: 14px; }
 .dashboard-block { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
@@ -71,8 +99,15 @@
 .explore-detail__actions { display: grid; gap: 10px; }
 
 @media (max-width: 1100px) {
-  .dashboard-grid, .explore-grid { grid-template-columns: 1fr; }
+  .explore-grid { grid-template-columns: 1fr; }
   .dashboard-map-wrap { height: 440px; }
+  .dashboard-metric-grid, .soil-metric-grid, .explore-detail__meta { grid-template-columns: repeat(2, 1fr); }
+  .dashboard-main { margin-left: 0; }
+  .dashboard-sidebar { transform: translateX(-100%); }
+  .dashboard-sidebar.dashboard-sidebar--mobile { position: fixed; transform: translateX(-100%); }
+  .dashboard-sidebar.is-open { transform: translateX(0); }
+  .dashboard-sidebar.dashboard-sidebar--mobile.is-open { transform: translateX(0); }
+  .dashboard-sidebar__toggle-mobile { display: flex; }
 }
 @media (max-width: 920px) {
   .page-intro { display: block; }
@@ -85,4 +120,5 @@
   .page-container { width: 92vw; padding-top: 24px; }
   .dashboard-metric-grid, .soil-metric-grid, .explore-detail__meta { grid-template-columns: 1fr; }
   .dashboard-map-wrap, .explore-detail__map { height: 360px; }
+  .dashboard-section__body { padding: 16px; }
 }

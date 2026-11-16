@@ -17,7 +17,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
+from app.api.routes.habitability import router as habitability_router
 from app.api.routes.indicators import router as indicators_router
+from app.api.routes.satellite import router as satellite_router
 from app.api.routes.soil import router as soil_router
 from app.api.routes.vegetation import router as vegetation_router
 
@@ -57,7 +59,9 @@ app = FastAPI(
 
 app.include_router(indicators_router)
 app.include_router(soil_router)
+app.include_router(satellite_router)
 app.include_router(vegetation_router)
+app.include_router(habitability_router)
 
 
 @app.exception_handler(Exception)

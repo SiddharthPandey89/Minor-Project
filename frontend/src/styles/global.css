@@ -16,6 +16,7 @@
 }
 
 * { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at 80% -10%, #152842 0, transparent 40%), var(--navy); }
 button, input { font: inherit; }
 button { cursor: pointer; }
@@ -50,19 +51,29 @@ h2 { margin-bottom: 0; font-size: 1.35rem; letter-spacing: -0.04em; }
 .control-bar { display: flex; align-items: end; justify-content: space-between; gap: 24px; padding: 18px 22px; margin-bottom: 18px; }
 .search-form { position: relative; flex: 1; }
 .search-form label, .field-label { display: block; margin-bottom: 8px; color: var(--muted); font: 0.64rem 'DM Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase; }
-.search-form__input { display: flex; align-items: center; border: 1px solid rgba(125, 227, 255, 0.25); background: #081523; }
+.search-form__input { display: flex; align-items: center; border: 1px solid rgba(125, 227, 255, 0.25); background: #081523 !important; border-radius: 6px; box-shadow: none; }
+.search-form__input:focus-within { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(125, 227, 255, 0.15); background: #081523 !important; }
 .search-icon { padding: 0 10px 0 13px; color: var(--cyan); font-size: 1.3rem; }
-.search-form input, .text-input { width: 100%; border: 0; outline: 0; color: #f0f7ff; background: transparent; }
-.search-form input { padding: 13px 6px; }
-.search-form input::placeholder, .text-input::placeholder { color: #526a82; }
+.search-form__input input { width: 100%; border: 0; outline: 0; color: #f0f7ff; background: transparent; border-radius: 6px; box-shadow: none; -webkit-text-fill-color: #f0f7ff; appearance: none; -webkit-appearance: none; padding: 13px 6px; }
+.search-form__input input::placeholder { color: #526a82; }
+.search-form__input input:focus { outline: none; box-shadow: none; background: transparent; }
+.search-form__input input:-webkit-autofill, .search-form__input input:-webkit-autofill:focus, .search-form__input input:-webkit-autofill:hover, .search-form__input input:-webkit-autofill:active { -webkit-box-shadow: 0 0 0 30px transparent inset !important; -webkit-text-fill-color: #f0f7ff !important; caret-color: #7de3ff !important; background: transparent !important; }
+.search-form__input input:not(:placeholder-shown) { background: transparent; }
+.search-form__input input:hover { background: transparent; }
+.search-form__input input:focus-visible { outline: none; box-shadow: none; background: transparent; }
+
+.text-input { border: 1px solid var(--line); color: #f0f7ff; }
+.text-input::placeholder { color: #526a82; }
+.text-input:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(125, 227, 255, 0.15); outline: none; }
 .search-form button { align-self: stretch; border: 0; padding: 0 18px; color: #06121e; background: var(--cyan); font-weight: 800; font-size: 0.76rem; }
 .control-hint { max-width: 330px; color: var(--muted); font-size: 0.78rem; line-height: 1.5; }
-.suggestions { position: absolute; z-index: 1000; left: 0; right: 0; top: calc(100% + 7px); max-height: min(560px, 70vh); overflow-y: auto; border: 1px solid rgba(125, 227, 255, 0.24); background: #0b1929; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35); }
+.suggestions { position: absolute; z-index: 1000; left: 0; right: 0; top: calc(100% + 7px); max-height: min(560px, 70vh); overflow-y: auto; border: 1px solid rgba(125, 227, 255, 0.24); background: #081523; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45); border-radius: 6px; }
 .suggestion-item { width: 100%; display: grid; gap: 4px; padding: 12px 15px; border: 0; border-bottom: 1px solid var(--line); color: #e9f2fb; background: transparent; text-align: left; }
 .suggestion-item:last-child { border-bottom: 0; }
-.suggestion-item:hover, .suggestion-item.is-active { background: rgba(125, 227, 255, 0.1); }
-.suggestion-item strong { font-size: 0.77rem; }
+.suggestion-item:hover, .suggestion-item.is-active { background: rgba(125, 227, 255, 0.12); color: #e9f2fb; }
+.suggestion-item strong { font-size: 0.77rem; color: #e9f2fb; }
 .suggestion-item span, .suggestion-status { color: var(--muted); font-size: 0.68rem; }
+.suggestion-item small { color: #526a82; font-size: 0.65rem; }
 .suggestion-status { padding: 13px 15px; }
 .suggestion-status--error { color: var(--danger); }
 .workspace-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(290px, 0.7fr); gap: 18px; }

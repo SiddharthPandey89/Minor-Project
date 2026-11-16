@@ -1,13 +1,13 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Header from '../components/layout/Header.jsx';
 import Footer from '../components/layout/Footer.jsx';
+import DashboardSidebar from '../components/layout/DashboardSidebar.jsx';
 import EarthMap from '../components/map/EarthMap.jsx';
 import DashboardPanel from '../components/dashboard/Dashboard.jsx';
 import Loader from '../components/common/Loader.jsx';
 import ErrorMessage from '../components/common/ErrorMessage.jsx';
 import { searchPlaces, requestWeatherAnalysis, requestHabitabilityAnalysis } from '../services/analysisService.js';
-import { getSystemHealth, checkMlService } from '../services/layerService.js';
 import { formatMatchType } from '../utils/formatters.js';
 import { useDebounce } from '../hooks/useDebounce.js';
 import { SEARCH_MIN_QUERY_LENGTH } from '../utils/constants.js';
@@ -47,6 +47,9 @@ export default function Dashboard() {
   const [searchError, setSearchError] = useState('');
   const [searchMessage, setSearchMessage] = useState('Search for a place or click the map to select coordinates.');
   const [selectedLocation, setSelectedLocation] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const analysisControllerRef = useRef(null);
 
   useEffect(() => {
     const region = location.state?.region;
@@ -73,37 +76,15 @@ export default function Dashboard() {
   const [analysis, setAnalysis] = useState(null);
   const [habitability, setHabitability] = useState(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
-  const [habitabilityLoading, setHabitabilityLoading] = useState(false);
+  const [soilLoading, setSoilLoading] = useState(false);
+  const [vegetationLoading, setVegetationLoading] = useState(false);
   const [weatherError, setWeatherError] = useState('');
   const [habitabilityError, setHabitabilityError] = useState('');
-
-  const [backendHealth, setBackendHealth] = useState(null);
-  const [mlReachable, setMlReachable] = useState(null);
-  const [healthLoading, setHealthLoading] = useState(true);
-  const [healthError, setHealthError] = useState('');
+  const [soilFailed, setSoilFailed] = useState(false);
+  const [vegetationFailed, setVegetationFailed] = useState(false);
+  const [habitabilityStatus, setHabitabilityStatus] = useState('idle');
 
   const debouncedQuery = useDebounce(query, 300);
-
-  const loadHealth = useCallback(async () => {
-    const controller = new AbortController();
-    setHealthLoading(true);
-    setHealthError('');
-    try {
-      const [healthResult, mlResult] = await Promise.allSettled([
-        getSystemHealth({ signal: controller.signal }),
-        checkMlService({ signal: controller.signal }),
-      ]);
-      if (healthResult.status === 'fulfilled') setBackendHealth(healthResult.value);
-      else setHealthError(healthResult.reason?.message || 'Unable to reach backend health service.');
-      setMlReachable(mlResult.status === 'fulfilled' ? mlResult.value : false);
-    } finally {
-      setHealthLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadHealth();
-  }, [loadHealth]);
 
   useEffect(() => {
     const q = debouncedQuery.trim();
@@ -159,21 +140,37 @@ export default function Dashboard() {
 
   const runAnalyses = useCallback(async () => {
     if (!selectedLocation) return;
+    if (analysisControllerRef.current) {
+      analysisControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    analysisControllerRef.current = controller;
     const regionName = label.trim() || selectedLocation.name || 'Selected location';
     const payload = {
       regionName,
       latitude: selectedLocation.latitude,
       longitude: selectedLocation.longitude,
     };
+
+    const retryModules = [];
+    if (soilFailed) retryModules.push('soil');
+    if (vegetationFailed) retryModules.push('vegetation');
+    const isRetry = retryModules.length > 0;
+
     setWeatherLoading(true);
-    setHabitabilityLoading(true);
+    setHabitabilityStatus(isRetry ? 'retrying' : 'idle');
+    setSoilLoading(retryModules.includes('soil') || !isRetry);
+    setVegetationLoading(retryModules.includes('vegetation') || !isRetry);
     setWeatherError('');
     setHabitabilityError('');
+
     try {
       const [weatherResult, habitabilityResult] = await Promise.allSettled([
         requestWeatherAnalysis(payload),
-        requestHabitabilityAnalysis(payload),
+        requestHabitabilityAnalysis({ ...payload, retryModules }),
       ]);
+      if (controller.signal.aborted) return;
+
       if (weatherResult.status === 'fulfilled') {
         const value = weatherResult.value;
         setAnalysis(value?.data ?? value);
@@ -181,117 +178,145 @@ export default function Dashboard() {
         setAnalysis(null);
         setWeatherError(weatherResult.reason?.message || 'Weather analysis request failed.');
       }
+
       if (habitabilityResult.status === 'fulfilled') {
-        setHabitability(habitabilityResult.value);
+        const result = habitabilityResult.value;
+        setHabitability(result);
+
+        const unavailable = result?.unavailableIndicators || {};
+        setSoilFailed(unavailable.soilQuality?.status === 'unavailable');
+        setVegetationFailed(unavailable.vegetation?.status === 'unavailable');
+
+        if (result?.availableIndicators?.soilQuality && result?.availableIndicators?.vegetation) {
+          setHabitabilityStatus('success');
+        } else if (result?.availableIndicators?.soilQuality || result?.availableIndicators?.vegetation) {
+          setHabitabilityStatus('unavailable');
+        } else {
+          setHabitabilityStatus('unavailable');
+        }
       } else {
         setHabitability(null);
         setHabitabilityError(habitabilityResult.reason?.message || 'Habitability analysis request failed.');
+        setSoilFailed(true);
+        setVegetationFailed(true);
+        setHabitabilityStatus('unavailable');
       }
     } finally {
-      setWeatherLoading(false);
-      setHabitabilityLoading(false);
+      if (!controller.signal.aborted) {
+        setWeatherLoading(false);
+        setSoilLoading(false);
+        setVegetationLoading(false);
+        analysisControllerRef.current = null;
+      }
     }
-  }, [selectedLocation, label]);
+  }, [selectedLocation, label, soilFailed, vegetationFailed]);
 
+  const habitabilityLoading = soilLoading || vegetationLoading;
   const canAnalyze = Boolean(selectedLocation) && !weatherLoading && !habitabilityLoading;
   const showSuggestions = query.trim().length >= SEARCH_MIN_QUERY_LENGTH && (searching || searchError || suggestions.length > 0);
-
-  const systemStatus = useMemo(() => ({
-    backend: backendHealth?.status === 'ok' ? 'online' : healthError ? 'offline' : 'unknown',
-    ml: mlReachable === true ? 'online' : mlReachable === false ? 'offline' : 'unknown',
-    environment: backendHealth?.environment || '—',
-  }), [backendHealth, healthError, mlReachable]);
 
   return (
     <div className="app-shell">
       <Header />
       <main className="page-container dashboard-page">
-        <section className="page-intro">
-          <div>
-            <p className="eyebrow">GEOSPATIAL INTELLIGENCE / DASHBOARD</p>
-            <h1>Regional analysis workspace<br /><span>with live environmental evidence.</span></h1>
-            <p className="intro-copy">
-              Select a location to run live weather and habitability analysis using configured APIs and the ML service.
-              Indicators, data gaps, and provenance are shown without fabricated values.
-            </p>
-          </div>
-          <div className="intro-meta">
-            <span>SYSTEM STATUS</span>
-            <strong>{systemStatus.backend === 'online' ? 'Backend online' : 'Backend unavailable'}</strong>
-            <small>ML service: {systemStatus.ml}</small>
-          </div>
-        </section>
+        <div className="dashboard-layout">
+          <DashboardSidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen((prev) => !prev)} />
 
-        <section className="dashboard-toolbar panel">
-          <div className="dashboard-toolbar__search">
-            <label className="field-label" htmlFor="dashboard-search">Search place</label>
-            <div className="search-form__input">
-              <span className="search-icon">⌕</span>
-              <input
-                id="dashboard-search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="City, state, country, or village"
-                autoComplete="off"
-              />
-            </div>
-            {showSuggestions && (
-              <div className="suggestions" role="listbox">
-                {searching && <div className="suggestion-status"><Loader inline size="sm" label="Searching places" /></div>}
-                {!searching && searchError && <div className="suggestion-status suggestion-status--error">{searchError}</div>}
-                {!searching && !searchError && suggestions.length === 0 && <div className="suggestion-status">No matching places found.</div>}
-                {!searching && !searchError && suggestions.map((suggestion) => (
-                  <button
-                    key={`${suggestion.id || suggestion.name}-${suggestion.latitude}-${suggestion.longitude}`}
-                    type="button"
-                    className="suggestion-item"
-                    onClick={() => handleSelectSuggestion(suggestion)}
-                  >
-                    <strong>{suggestion.displayName || suggestion.name}</strong>
-                    <span>{suggestion.placeType}{suggestion.matchType ? ` · ${formatMatchType(suggestion.matchType)}` : ''}</span>
-                    <small>{suggestion.latitude.toFixed(4)}, {suggestion.longitude.toFixed(4)}</small>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="dashboard-toolbar__actions">
-            <label className="field-label" htmlFor="dashboard-label">Analysis label</label>
-            <input
-              id="dashboard-label"
-              className="text-input"
-              value={label}
-              onChange={(event) => setLabel(event.target.value)}
-              placeholder={selectedLocation ? selectedLocation.name : 'Selected region label'}
-            />
-            <button type="button" className="analyze-button" disabled={!canAnalyze} onClick={runAnalyses}>
-              <span>{weatherLoading || habitabilityLoading ? 'Running live analysis…' : 'Run full analysis'}</span>
-              <span>↗</span>
+          <div className="dashboard-main">
+            <button type="button" className="dashboard-sidebar__toggle-mobile" onClick={() => setSidebarOpen((prev) => !prev)} aria-label="Toggle navigation">
+              <span />
+              <span />
+              <span />
             </button>
-            <p className="dashboard-toolbar__hint">{searchMessage}</p>
-          </div>
-        </section>
 
-        <section className="dashboard-grid">
-          <div className="dashboard-grid__map panel map-panel">
-            <div className="panel-heading">
+            <section className="page-intro">
               <div>
-                <p className="eyebrow">MAP VIEW</p>
-                <h2>Earth surface selection</h2>
+                <p className="eyebrow">GEOSPATIAL INTELLIGENCE / DASHBOARD</p>
+                <h1>Regional analysis workspace<br /><span>with live environmental evidence.</span></h1>
+                <p className="intro-copy">
+                  Select a location to run live weather and habitability analysis using configured APIs and the ML service.
+                  Indicators, data gaps, and provenance are shown without fabricated values.
+                </p>
               </div>
-              <span className="map-badge"><span className="status-dot" /> Interactive</span>
-            </div>
-            <div className="map-wrap dashboard-map-wrap">
-              <EarthMap selectedLocation={selectedLocation} onSelect={handleMapSelect} language="en" />
-              <div className="map-overlay">CLICK TO SELECT COORDINATES</div>
-            </div>
-            <div className="map-caption">
-              <span><i className="legend-dot" /> {selectedLocation ? selectedLocation.name : 'No point selected'}</span>
-              <span>Layers: Normal · Satellite</span>
-            </div>
-          </div>
+            </section>
 
-          <div className="dashboard-grid__side">
+            {/* Location Search Section */}
+            <section id="location-search" className="dashboard-section panel">
+              <div className="dashboard-section__header">
+                <div>
+                  <p className="eyebrow">LOCATION SEARCH</p>
+                  <h2>Search & Select Location</h2>
+                </div>
+              </div>
+              <div className="dashboard-section__body">
+                <div className="dashboard-toolbar panel">
+                  <div className="dashboard-toolbar__search">
+                    <label className="field-label" htmlFor="dashboard-search">Search place</label>
+                    <div className="search-form__input">
+                      <span className="search-icon">⌕</span>
+                      <input
+                        id="dashboard-search"
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder="City, state, country, or village"
+                        autoComplete="off"
+                      />
+                    </div>
+                    {showSuggestions && (
+                      <div className="suggestions" role="listbox">
+                        {searching && <div className="suggestion-status"><Loader inline size="sm" label="Searching places" /></div>}
+                        {!searching && searchError && <div className="suggestion-status suggestion-status--error">{searchError}</div>}
+                        {!searching && !searchError && suggestions.length === 0 && <div className="suggestion-status">No matching places found.</div>}
+                        {!searching && !searchError && suggestions.map((suggestion) => (
+                          <button
+                            key={`${suggestion.id || suggestion.name}-${suggestion.latitude}-${suggestion.longitude}`}
+                            type="button"
+                            className="suggestion-item"
+                            onClick={() => handleSelectSuggestion(suggestion)}
+                          >
+                            <strong>{suggestion.displayName || suggestion.name}</strong>
+                            <span>{suggestion.placeType}{suggestion.matchType ? ` · ${formatMatchType(suggestion.matchType)}` : ''}</span>
+                            <small>{suggestion.latitude.toFixed(4)}, {suggestion.longitude.toFixed(4)}</small>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="dashboard-toolbar__actions">
+                    <label className="field-label" htmlFor="dashboard-label">Analysis label</label>
+                    <input
+                      id="dashboard-label"
+                      className="text-input"
+                      value={label}
+                      onChange={(event) => setLabel(event.target.value)}
+                      placeholder={selectedLocation ? selectedLocation.name : 'Selected region label'}
+                    />
+                    <p className="dashboard-toolbar__hint">{searchMessage}</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Map Section */}
+            <section id="map-view" className="dashboard-section panel">
+              <div className="dashboard-section__header">
+                <div>
+                  <p className="eyebrow">MAP VIEW</p>
+                  <h2>Earth Surface Selection</h2>
+                </div>
+                <span className="map-badge"><span className="status-dot" /> Interactive</span>
+              </div>
+              <div className="dashboard-section__body map-wrap dashboard-map-wrap">
+                <EarthMap selectedLocation={selectedLocation} onSelect={handleMapSelect} language="en" />
+                <div className="map-overlay">CLICK TO SELECT COORDINATES</div>
+              </div>
+              <div className="map-caption">
+                <span><i className="legend-dot" /> {selectedLocation ? selectedLocation.name : 'No point selected'}</span>
+                <span>Layers: Normal · Satellite</span>
+              </div>
+            </section>
+
+            {/* Analysis Results Sections */}
             <DashboardPanel
               selectedLocation={selectedLocation}
               label={label}
@@ -300,18 +325,18 @@ export default function Dashboard() {
               canAnalyze={canAnalyze}
               weatherLoading={weatherLoading}
               habitabilityLoading={habitabilityLoading}
+              soilLoading={soilLoading}
+              vegetationLoading={vegetationLoading}
+              habitabilityStatus={habitabilityStatus}
               weatherError={weatherError}
               habitabilityError={habitabilityError}
               analysis={analysis}
               habitability={habitability}
-              systemStatus={systemStatus}
-              healthLoading={healthLoading}
-              onRefreshHealth={loadHealth}
             />
-          </div>
-        </section>
 
-        <Footer />
+            <Footer />
+          </div>
+        </div>
       </main>
     </div>
   );
