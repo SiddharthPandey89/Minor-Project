@@ -1,4 +1,5 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '');
+const ML_SERVICE_URL = (import.meta.env.VITE_ML_SERVICE_URL || 'http://localhost:8000').replace(/\/$/, '');
 const GEOCODING_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 const SEARCH_RESULT_LIMIT = 100;
 
@@ -124,6 +125,15 @@ export async function requestHabitabilityAnalysis({ regionName, latitude, longit
   }
 
   return payload.data;
+}
+
+export async function requestElevationAnalysis({ latitude, longitude }) {
+  const response = await fetch(`${ML_SERVICE_URL}/api/v1/elevation/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ latitude, longitude }),
+  });
+  return readJson(response, 'The elevation analysis request failed.');
 }
 
 export async function searchPlaces(name, { signal, countryCode } = {}) {

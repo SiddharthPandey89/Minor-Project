@@ -22,6 +22,9 @@ from typing import Any, Literal, Protocol
 from fastapi import APIRouter
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.ingestion.opentopography.elevation import OpenTopographyElevationClient
+from app.ingestion.usgs.elevation import USGSElevationClient, InvalidQueryError
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/indicators", tags=["indicators"])
@@ -78,6 +81,11 @@ SUPPORTED_INDICATORS: dict[str, IndicatorDefinition] = {
             name="soil",
             label="Soil analysis",
             description="Raster-based soil properties such as pH, organic carbon, clay, sand, texture, and bulk density.",
+        ),
+        IndicatorDefinition(
+            name="elevation",
+            label="Elevation analysis",
+            description="Real DEM-based elevation at the region centroid, with terrain category, from OpenTopography (COP30) with USGS 3DEP EPQS fallback.",
         ),
     )
 }
@@ -297,6 +305,125 @@ class IndicatorProvider(Protocol):
     async def fetch(self, region: RegionInput, time_range: TimeRange | None) -> ProviderReading:
         """Return a real reading, or raise ``DataUnavailableError``."""
         ...
+
+
+class ElevationIndicatorProvider:
+    """Elevation data provider backed by OpenTopography Point Elevation API
+    (COP30 global dataset) as the primary source, with USGS 3DEP EPQS as a
+    US-only fallback.
+
+    Takes the centroid of the requested region bbox and queries OpenTopography
+    for the real elevation at that point. Falls back to USGS EPQS when
+    OpenTopography is unconfigured or unavailable. Returns elevation in metres
+    as the value, with feet and terrain category in the details.
+    """
+
+    def __init__(self) -> None:
+        self._ot_client = OpenTopographyElevationClient()
+        self._usgs_client = USGSElevationClient()
+
+    async def fetch(
+        self, region: RegionInput, time_range: TimeRange | None
+    ) -> ProviderReading:
+        summary = region.summary()
+        min_lon, min_lat, max_lon, max_lat = summary.bbox
+        center_lat = (min_lat + max_lat) / 2.0
+        center_lon = (min_lon + max_lon) / 2.0
+
+        # Try OpenTopography first (primary, global coverage).
+        if self._ot_client.is_configured():
+            try:
+                result = self._ot_client.query_point(
+                    center_lat, center_lon, units="Meters", dataset="COP30"
+                )
+                if result.records:
+                    record = result.records[0]
+                    elevation_m = record.get("elevation")
+                    if isinstance(elevation_m, (int, float)) and math.isfinite(elevation_m):
+                        elevation_m = float(elevation_m)
+                        elevation_ft = round(elevation_m * 3.28084, 1)
+                        category = "Unknown"
+                        for low, high, label in [
+                            (-float("inf"), 0.0, "Below sea level"),
+                            (0.0, 200.0, "Coastal lowland"),
+                            (200.0, 500.0, "Lowland"),
+                            (500.0, 1000.0, "Hills"),
+                            (1000.0, 2000.0, "Moderate mountains"),
+                            (2000.0, 3000.0, "High mountains"),
+                            (3000.0, 5000.0, "Very high mountains"),
+                            (5000.0, float("inf"), "Extreme high mountains"),
+                        ]:
+                            if low <= elevation_m < high:
+                                category = label
+                                break
+                        return ProviderReading(
+                            value=elevation_m,
+                            unit="m",
+                            source="OpenTopography Point Elevation API (COP30)",
+                            details={
+                                "elevation_ft": elevation_ft,
+                                "terrain_category": category,
+                                "source_raster": record.get("source_raster", "COP30"),
+                                "query_point": {"latitude": center_lat, "longitude": center_lon},
+                            },
+                            period=None,
+                        )
+            except InvalidQueryError as exc:
+                logger.warning(
+                    "OpenTopography invalid query for %s, %s: %s",
+                    center_lat, center_lon, exc,
+                )
+            except Exception:
+                logger.exception(
+                    "OpenTopography request failed for %s, %s",
+                    center_lat, center_lon,
+                )
+
+        # Fall back to USGS 3DEP EPQS (US-only coverage).
+        try:
+            result = self._usgs_client.query_point(center_lat, center_lon, units="Meters")
+            if result.records:
+                record = result.records[0]
+                elevation_m = record.get("elevation")
+                if isinstance(elevation_m, (int, float)) and math.isfinite(elevation_m):
+                    elevation_m = float(elevation_m)
+                    elevation_ft = round(elevation_m * 3.28084, 1)
+                    category = "Unknown"
+                    for low, high, label in [
+                        (-float("inf"), 0.0, "Below sea level"),
+                        (0.0, 200.0, "Coastal lowland"),
+                        (200.0, 500.0, "Lowland"),
+                        (500.0, 1000.0, "Hills"),
+                        (1000.0, 2000.0, "Moderate mountains"),
+                        (2000.0, 3000.0, "High mountains"),
+                        (3000.0, 5000.0, "Very high mountains"),
+                        (5000.0, float("inf"), "Extreme high mountains"),
+                    ]:
+                        if low <= elevation_m < high:
+                            category = label
+                            break
+                    return ProviderReading(
+                        value=elevation_m,
+                        unit="m",
+                        source="USGS 3DEP Elevation Point Query Service (EPQS)",
+                        details={
+                            "elevation_ft": elevation_ft,
+                            "terrain_category": category,
+                            "source_raster": "USGS 3DEP",
+                            "query_point": {"latitude": center_lat, "longitude": center_lon},
+                        },
+                        period=None,
+                    )
+        except InvalidQueryError as exc:
+            raise DataUnavailableError(str(exc)) from exc
+        except Exception as exc:
+            logger.exception("Elevation indicator provider failed")
+            raise DataUnavailableError(f"Elevation provider failed: {exc}") from exc
+
+        raise DataUnavailableError(
+            "No elevation data available from OpenTopography or USGS EPQS "
+            "for this location."
+        )
 
 
 _PROVIDERS: dict[str, IndicatorProvider] = {}

@@ -36,6 +36,13 @@ from ...indicators.vegetation import classify_vegetation_density
 from ...ingestion.copernicus.sentinel import CopernicusSentinelClient
 from ...ingestion.registry import BoundingBox, DateRange, IngestionError, request_json
 
+from app.common import provider_cache
+from app.intelligence.evidence import (
+    DATA_TYPE_OBSERVED,
+    REASON_CLOUD_OBSCURED,
+    EvidenceResult,
+)
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/vegetation", tags=["vegetation"])
 
@@ -47,7 +54,7 @@ SEARCH_TIERS: list[dict[str, Any]] = [
 ]
 MAX_CLOUD_COVER = 20.0
 SEARCH_DAYS = 90
-REQUEST_TIMEOUT_SECONDS = 12
+REQUEST_TIMEOUT_SECONDS = 30
 COLLECTION = "sentinel-2-l2a"
 PUBLIC_STAC_URL = "https://earth-search.aws.element84.com/v1/search"
 SOURCE_KEY = "_earth_geointelligence_source"
@@ -156,7 +163,9 @@ def _scene_priority(item: dict[str, Any]) -> tuple[float, float]:
     return cloud_rank, -timestamp
 
 
-def _select_scene(items: list[dict[str, Any]], source: str) -> dict[str, Any] | None:
+def _select_scene(
+    items: list[dict[str, Any]], source: str, max_cloud_cover: float = MAX_CLOUD_COVER
+) -> dict[str, Any] | None:
     candidates = []
     for item in items:
         if not isinstance(item, dict):
@@ -171,7 +180,7 @@ def _select_scene(items: list[dict[str, Any]], source: str) -> dict[str, Any] | 
         if not red_href or not nir_href or not scl_href:
             continue
         cloud_cover = properties.get("eo:cloud_cover")
-        if isinstance(cloud_cover, (int, float)) and cloud_cover > MAX_CLOUD_COVER:
+        if isinstance(cloud_cover, (int, float)) and cloud_cover > max_cloud_cover:
             continue
         candidates.append(item)
 
@@ -223,7 +232,7 @@ def _find_public_scene(
             method="POST",
             payload=payload,
             timeout=REQUEST_TIMEOUT_SECONDS,
-            retries=0,
+            retries=2,
         )
     except IngestionError as exc:
         logger.warning("Element84 Earth Search request failed (days=%d, cloud=%s): %s", days, cloud_cover, exc)
@@ -231,7 +240,11 @@ def _find_public_scene(
     if not isinstance(response, dict) or not isinstance(response.get("features"), list):
         logger.warning("Element84 Earth Search returned invalid response (days=%d, cloud=%s)", days, cloud_cover)
         return None
-    return _select_scene(response["features"], "Element 84 Earth Search Sentinel-2 COG")
+    return _select_scene(
+        response["features"],
+        "Element 84 Earth Search Sentinel-2 COG",
+        max_cloud_cover=cloud_cover,
+    )
 
 
 def _find_scene(bbox: BoundingBox) -> dict[str, Any] | None:
@@ -267,7 +280,7 @@ def _find_scene(bbox: BoundingBox) -> dict[str, Any] | None:
 
         if result is not None:
             records = list(result.records)
-            scene = _select_scene(records, "Copernicus Data Space Sentinel-2")
+            scene = _select_scene(records, "Copernicus Data Space Sentinel-2", max_cloud_cover=cloud_cover)
             if scene is not None and _asset_hosts_are_routable(scene):
                 return scene
             logger.debug(
@@ -453,6 +466,29 @@ async def analyze_vegetation(
 ) -> VegetationAnalysisResponse:
     bbox, bounds = _region_bbox(request.latitude, request.longitude, request.area_km2)
 
+    key = f"veg|{request.latitude:.4f}|{request.longitude:.4f}|{request.area_km2}"
+
+    # Return cached unavailable result unless bypassing cache for retry.
+    if not request.bypass_cache:
+        cached = provider_cache.get_unavailable("Sentinel-2 L2A", key)
+        if cached is not None:
+            return VegetationAnalysisResponse(
+                data_available=False,
+                region={
+                    "latitude": request.latitude,
+                    "longitude": request.longitude,
+                    "area_km2": request.area_km2,
+                    "bbox": bounds,
+                },
+                data_source="Sentinel-2 L2A",
+                dataset="Sentinel-2 MultiSpectral Instrument (MSI), Level-2A",
+                resolution_m=10,
+                confidence=None,
+                confidence_note="Returned from provider cache.",
+                unavailable_reason=cached.unavailable_reason,
+                reason_code=cached.reason_code,
+            )
+
     # Search across multiple tiers (date range + cloud cover) for a usable scene.
     item = None
     try:
@@ -460,7 +496,25 @@ async def analyze_vegetation(
     except VegetationProviderError as exc:
         logger.warning("Vegetation provider/catalog failure: %s", exc)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        # Catch any unexpected error (e.g., malformed STAC response) so the
+        # request returns a clear unavailable response instead of HTTP 500.
+        logger.exception("Unexpected error searching for Sentinel-2 scene for %s, %s: %s",
+                         request.latitude, request.longitude, exc)
     if item is None:
+        if not request.bypass_cache:
+            provider_cache.set_unavailable("Sentinel-2 L2A", key, EvidenceResult(
+                provider="Sentinel-2 L2A",
+                dataset="Sentinel-2 MultiSpectral Instrument (MSI), Level-2A",
+                data_type=DATA_TYPE_OBSERVED,
+                resolution_m=10,
+                data_available=False,
+                unavailable_reason=(
+                    "No Sentinel-2 L2A scene with required red, NIR, and scene-classification "
+                    "bands was found across the searched date ranges and cloud-cover thresholds."
+                ),
+                reason_code=REASON_CLOUD_OBSCURED,
+            ))
         return VegetationAnalysisResponse(
             data_available=False,
             region={
@@ -484,6 +538,18 @@ async def analyze_vegetation(
         result_data = await asyncio.to_thread(_compute_ndvi, item, bounds=bounds)
     except VegetationProviderError as exc:
         logger.warning("NDVI computation failed for %s, %s: %s", request.latitude, request.longitude, exc)
+        if not request.bypass_cache:
+            provider_cache.set_unavailable("Sentinel-2 L2A", key, EvidenceResult(
+                provider="Sentinel-2 L2A",
+                dataset="Sentinel-2 MultiSpectral Instrument (MSI), Level-2A",
+                data_type=DATA_TYPE_OBSERVED,
+                resolution_m=10,
+                data_available=False,
+                unavailable_reason=f"Sentinel-2 scene found but could not be processed: {exc}",
+                reason_code=REASON_CLOUD_OBSCURED,
+                scene_id=str(item.get("id")) if item.get("id") is not None else None,
+                observation_date=item.get("properties", {}).get("datetime"),
+            ))
         return VegetationAnalysisResponse(
             data_available=False,
             region={
@@ -501,8 +567,58 @@ async def analyze_vegetation(
             confidence_note="No confidence estimate is available because NDVI could not be computed.",
             unavailable_reason=f"Sentinel-2 scene found but could not be processed: {exc}",
         )
+    except Exception as exc:
+        # Catch any unexpected error during NDVI computation so the request
+        # returns a clear unavailable response instead of HTTP 500.
+        logger.exception("Unexpected error computing NDVI for %s, %s: %s",
+                         request.latitude, request.longitude, exc)
+        scene_id = str(item.get("id")) if item.get("id") is not None else None
+        observation_date = item.get("properties", {}).get("datetime")
+        if not request.bypass_cache:
+            provider_cache.set_unavailable("Sentinel-2 L2A", key, EvidenceResult(
+                provider="Sentinel-2 L2A",
+                dataset="Sentinel-2 MultiSpectral Instrument (MSI), Level-2A",
+                data_type=DATA_TYPE_OBSERVED,
+                resolution_m=10,
+                data_available=False,
+                unavailable_reason=f"Sentinel-2 scene found but could not be processed: {exc}",
+                reason_code=REASON_CLOUD_OBSCURED,
+                scene_id=scene_id,
+                observation_date=observation_date,
+            ))
+        return VegetationAnalysisResponse(
+            data_available=False,
+            region={
+                "latitude": request.latitude,
+                "longitude": request.longitude,
+                "area_km2": request.area_km2,
+                "bbox": bounds,
+            },
+            data_source=str(item.get(SOURCE_KEY, "Sentinel-2 L2A")),
+            dataset="Sentinel-2 MultiSpectral Instrument (MSI), Level-2A",
+            resolution_m=10,
+            scene_id=scene_id,
+            observation_date=observation_date,
+            confidence=None,
+            confidence_note="No confidence estimate is available because NDVI could not be computed.",
+            unavailable_reason=f"Sentinel-2 scene found but could not be processed: {exc}",
+        )
 
     if result_data is None:
+        if not request.bypass_cache:
+            provider_cache.set_unavailable("Sentinel-2 L2A", key, EvidenceResult(
+                provider="Sentinel-2 L2A",
+                dataset="Sentinel-2 MultiSpectral Instrument (MSI), Level-2A",
+                data_type=DATA_TYPE_OBSERVED,
+                resolution_m=10,
+                data_available=False,
+                unavailable_reason=(
+                    "The selected scene contains no valid, cloud-screened pixels for the requested area."
+                ),
+                reason_code=REASON_CLOUD_OBSCURED,
+                scene_id=str(item.get("id")) if item.get("id") is not None else None,
+                observation_date=item.get("properties", {}).get("datetime"),
+            ))
         return VegetationAnalysisResponse(
             data_available=False,
             region={

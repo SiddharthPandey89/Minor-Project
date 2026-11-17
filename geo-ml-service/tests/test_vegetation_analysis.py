@@ -16,9 +16,13 @@ from app.api.routes.vegetation import (
     _compute_ndvi,
     analyze_vegetation,
 )
+from app.common import provider_cache
 
 
 class VegetationAnalysisTests(TestCase):
+    def setUp(self):
+        provider_cache.clear()
+
     def _write_raster(self, path, values, dtype):
         with rasterio.open(
             path,
@@ -143,3 +147,91 @@ class VegetationAnalysisTests(TestCase):
         self.assertEqual(result.vegetation["coverage_percentage"], 80 * 100 / 90)
         self.assertEqual(result.quality["valid_pixel_percentage"], 90.0)
         self.assertIsNone(result.confidence)
+
+    def test_normal_request_uses_cached_unavailable_result(self):
+        """Second normal request returns cached unavailable without calling provider."""
+        call_count = 0
+
+        def fake_find_scene(bbox):
+            nonlocal call_count
+            call_count += 1
+            return None
+
+        with patch("app.api.routes.vegetation._find_scene", side_effect=fake_find_scene):
+            # First call: no cache, queries provider, caches unavailable result.
+            result1 = asyncio.run(
+                analyze_vegetation(
+                    VegetationAnalysisRequest(latitude=23.2, longitude=77.4)
+                )
+            )
+            self.assertFalse(result1.data_available)
+            self.assertEqual(call_count, 1)
+
+            # Second call: returns cached unavailable, does not call provider.
+            result2 = asyncio.run(
+                analyze_vegetation(
+                    VegetationAnalysisRequest(latitude=23.2, longitude=77.4)
+                )
+            )
+            self.assertFalse(result2.data_available)
+            self.assertEqual(call_count, 1)  # provider not called again
+
+    def test_bypass_cache_skips_cache_and_retries_provider(self):
+        """bypass_cache=True ignores cached unavailable and queries provider fresh."""
+        call_count = 0
+
+        def fake_find_scene(bbox):
+            nonlocal call_count
+            call_count += 1
+            return None
+
+        with patch("app.api.routes.vegetation._find_scene", side_effect=fake_find_scene):
+            # First call: caches unavailable result.
+            result1 = asyncio.run(
+                analyze_vegetation(
+                    VegetationAnalysisRequest(latitude=23.2, longitude=77.4)
+                )
+            )
+            self.assertFalse(result1.data_available)
+            self.assertEqual(call_count, 1)
+
+            # Second call with bypass_cache=True: skips cache, queries provider again.
+            result2 = asyncio.run(
+                analyze_vegetation(
+                    VegetationAnalysisRequest(
+                        latitude=23.2, longitude=77.4, bypass_cache=True
+                    )
+                )
+            )
+            self.assertFalse(result2.data_available)
+            self.assertEqual(call_count, 2)  # provider called again despite cache
+
+    def test_bypass_cache_true_does_not_cache_unavailable_result(self):
+        """bypass_cache=True does not store unavailable result, so next normal call retries."""
+        call_count = 0
+
+        def fake_find_scene(bbox):
+            nonlocal call_count
+            call_count += 1
+            return None
+
+        with patch("app.api.routes.vegetation._find_scene", side_effect=fake_find_scene):
+            # First call with bypass_cache=True: queries provider, does NOT cache.
+            result1 = asyncio.run(
+                analyze_vegetation(
+                    VegetationAnalysisRequest(
+                        latitude=23.2, longitude=77.4, bypass_cache=True
+                    )
+                )
+            )
+            self.assertFalse(result1.data_available)
+            self.assertEqual(call_count, 1)
+
+            # Second normal call: no cache entry (bypass didn't store), queries provider again.
+            result2 = asyncio.run(
+                analyze_vegetation(
+                    VegetationAnalysisRequest(latitude=23.2, longitude=77.4)
+                )
+            )
+            self.assertFalse(result2.data_available)
+            self.assertEqual(call_count, 2)  # provider called again

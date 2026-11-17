@@ -37,11 +37,14 @@ const Dashboard = ({
   habitabilityLoading,
   soilLoading,
   vegetationLoading,
+  elevationLoading,
   habitabilityStatus,
   weatherError,
   habitabilityError,
+  elevationError,
   analysis,
   habitability,
+  elevation,
 }) => {
   const metrics = weatherMetrics(analysis);
   const vegetation = habitability?.availableIndicators?.vegetation;
@@ -227,6 +230,54 @@ const Dashboard = ({
               illustration="data"
               title="No vegetation analysis yet"
               message="Run analysis to retrieve Sentinel-2 NDVI vegetation data for this location."
+            />
+          )}
+        </div>
+      </section>
+
+      {/* Elevation / Terrain Analysis Section */}
+      <section id="elevation-terrain" className="dashboard-section panel">
+        <div className="dashboard-section__header">
+          <div>
+            <p className="eyebrow">TERRAIN</p>
+            <h2>Elevation Analysis</h2>
+          </div>
+        </div>
+        <div className="dashboard-section__body">
+          {elevationLoading && <Loader label="Retrieving elevation analysis" />}
+          {!elevationLoading && !elevation && !elevationError && (
+            <EmptyState
+              illustration="data"
+              title="No elevation data yet"
+              message="Run analysis to retrieve real elevation from USGS 3DEP Elevation Point Query Service."
+            />
+          )}
+          {elevationError && (
+            <EmptyState
+              illustration="data"
+              title="Elevation data unavailable"
+              message={elevationError}
+            />
+          )}
+          {elevation && elevation.data_available && elevation.elevation_m != null && (
+            <>
+              <div className="metric-grid dashboard-metric-grid elevation-metrics">
+                <MetricCard label="Elevation (metres)" value={elevation.elevation_m} unit="m" tone="cyan" />
+                <MetricCard label="Elevation (feet)" value={elevation.elevation_ft} unit="ft" tone="cyan" />
+                <MetricCard label="Terrain category" value={elevation.terrain_category || '—'} unit="" tone="purple" />
+              </div>
+              <div className="soil-facts">
+                {elevation.data_source && <div><span className="provenance__label">DATA SOURCE</span><strong>{elevation.data_source}</strong></div>}
+                {elevation.method && <p className="method-note">{elevation.method}</p>}
+                {elevation.retrievedAt && <div><span className="provenance__label">RETRIEVED</span><strong>{formatTimestamp(elevation.retrievedAt)}</strong></div>}
+              </div>
+            </>
+          )}
+          {!elevationLoading && elevation && !elevation.data_available && (
+            <EmptyState
+              illustration="data"
+              title="No elevation data available"
+              message={elevation.unavailable_reason || 'No verified elevation data is available for this location.'}
             />
           )}
         </div>

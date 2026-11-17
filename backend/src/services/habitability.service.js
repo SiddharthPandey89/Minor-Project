@@ -8,10 +8,12 @@ const ML_SERVICE_URL = String(config.ML_SERVICE_URL || 'http://localhost:8000').
 const SOIL_ANALYZE_URL = `${ML_SERVICE_URL}/api/v1/soil/analyze`;
 const VEGETATION_ANALYZE_URL = `${ML_SERVICE_URL}/api/v1/vegetation/analyze`;
 const ML_HABITABILITY_ASSESS_URL = `${ML_SERVICE_URL}/api/v1/habitability/assess`;
+const ML_ELEVATION_ANALYZE_URL = `${ML_SERVICE_URL}/api/v1/elevation/analyze`;
 const ML_REQUEST_TIMEOUT_MS = 30000;
 const ML_SOIL_TIMEOUT_MS = 90000;
 const ML_VEGETATION_TIMEOUT_MS = 120000;
 const ML_HABITABILITY_TIMEOUT_MS = 120000;
+const ML_ELEVATION_TIMEOUT_MS = 30000;
 const ML_RETRY_DELAYS_MS = [500, 1500];
 const DEFAULT_SOIL_DEPTH = '0-5cm';
 const DEFAULT_VEGETATION_AREA_KM2 = 1.0;
@@ -357,6 +359,61 @@ const buildVegetationIndicator = async (latitude, longitude, retry = false) => {
     dataAvailable: true,
     source: null,
   };
+}
+
+const buildElevationIndicator = async (latitude, longitude) => {
+  const key = cacheKey('elevation', latitude, longitude, '');
+  let payload;
+  try {
+    payload = await withDedupAndCache('elevation', key, async () =>
+      postJson(ML_ELEVATION_ANALYZE_URL, {
+        latitude,
+        longitude,
+      }, { serviceName: 'Elevation analysis service', timeoutMs: ML_ELEVATION_TIMEOUT_MS })
+    , false);
+  } catch (error) {
+    return unavailableIndicator(userFacingFailureReason('Elevation data', error), {
+      failureType: classifyMlFailure(error),
+      upstreamStatus: error?.upstreamStatus || error?.statusCode || null,
+    });
+  }
+
+  if (payload?.data_available !== true) {
+    return unavailableIndicator(
+      payload?.unavailable_reason || 'No verified elevation data is available for this location.',
+      { failureType: 'data_unavailable' },
+    );
+  }
+
+  if (
+    typeof payload.elevation_m !== 'number' || !isFiniteNumber(payload.elevation_m)
+  ) {
+    return unavailableIndicator('Elevation data provider returned an incomplete response for this location.', {
+      failureType: 'data_unavailable',
+    });
+  }
+
+  const elevationM = payload.elevation_m;
+  const elevationFt = payload.elevation_ft;
+  const terrainCategory = payload.terrain_category;
+
+  return {
+    status: 'available',
+    data: {
+      elevation_m: elevationM,
+      elevation_ft: elevationFt,
+      terrain_category: terrainCategory,
+    },
+    units: {
+      elevation_m: 'm',
+      elevation_ft: 'ft',
+    },
+    provider: typeof payload.data_source === 'string' && payload.data_source.length > 0 ? payload.data_source : 'USGS 3DEP Elevation Point Query Service (EPQS)',
+    method: payload.method || 'USGS 3DEP Elevation Point Query Service (real DEM-based elevation at the requested point).',
+    retrievedAt: payload.retrieved_at || new Date().toISOString(),
+    dataAvailable: true,
+    source: typeof payload.source_url === 'string' && payload.source_url.length > 0 ? payload.source_url : null,
+  };
 };
 
 const getHabitabilityAnalysis = async ({ regionName, latitude, longitude, retryModules = [] } = {}) => {
@@ -384,7 +441,6 @@ const getHabitabilityAnalysis = async ({ regionName, latitude, longitude, retryM
   const unavailableIndicators = {
     waterAvailability: unavailableIndicator('No verified surface-water or hydrology dataset is configured for this service.', { failureType: 'not_configured' }),
     airQuality: unavailableIndicator('No verified air-quality dataset is configured for this service.', { failureType: 'not_configured' }),
-    elevation: unavailableIndicator('No verified elevation dataset is configured for this service.', { failureType: 'not_configured' }),
     landCover: unavailableIndicator('No verified land-cover dataset is configured for this service.', { failureType: 'not_configured' }),
   };
 
@@ -400,9 +456,10 @@ const getHabitabilityAnalysis = async ({ regionName, latitude, longitude, retryM
   const retrySoil = retryModules.includes('soil');
   const retryVegetation = retryModules.includes('vegetation');
 
-  const [soilSettled, vegetationSettled] = await Promise.allSettled([
+  const [soilSettled, vegetationSettled, elevationSettled] = await Promise.allSettled([
     buildSoilIndicator(validLatitude, validLongitude, retrySoil),
     buildVegetationIndicator(validLatitude, validLongitude, retryVegetation),
+    buildElevationIndicator(validLatitude, validLongitude),
   ]);
 
   const soilResult = soilSettled.status === 'fulfilled'
@@ -441,6 +498,24 @@ const getHabitabilityAnalysis = async ({ regionName, latitude, longitude, retryM
     unavailableIndicators.vegetation = vegetationResult;
   }
 
+  const elevationResult = elevationSettled.status === 'fulfilled'
+    ? elevationSettled.value
+    : unavailableIndicator('Elevation data could not be retrieved due to an internal processing error.', { failureType: 'service_error' });
+  if (elevationSettled.status === 'rejected') {
+    console.error('Elevation analysis task rejected:', elevationSettled.reason?.message || elevationSettled.reason);
+  }
+  if (elevationResult.status === 'available') {
+    availableIndicators.elevation = elevationResult;
+    sources.push({
+      provider: elevationResult.provider,
+      endpoint: ML_ELEVATION_ANALYZE_URL,
+      retrievedAt: elevationResult.retrievedAt,
+      coverage: 'Point elevation from USGS 3DEP DEM at the requested coordinates; real measured value, not modelled.',
+    });
+  } else {
+    unavailableIndicators.elevation = elevationResult;
+  }
+
   const soilOk = soilResult.status === 'available';
   const vegOk = vegetationResult.status === 'available';
 
@@ -463,6 +538,17 @@ const getHabitabilityAnalysis = async ({ regionName, latitude, longitude, retryM
       mean_c: weatherCurrent.temperature,
       min_c: weatherDaily?.minimumTemperature ?? null,
       max_c: weatherDaily?.maximumTemperature ?? null,
+    };
+  }
+
+  // Pass real elevation as a terrain factor input. Only elevation_m is available
+  // from USGS EPQS; slope is not supplied, so the terrain factor may score on
+  // elevation alone if completeness meets the model threshold.
+  const elevationData = availableIndicators.elevation?.data;
+  if (isFiniteNumber(elevationData?.elevation_m)) {
+    directFactors.terrain = {
+      elevation_m: elevationData.elevation_m,
+      slope_deg: null,
     };
   }
 

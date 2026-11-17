@@ -5,8 +5,8 @@ const MetricCard = ({ label, value, unit, tone = 'cyan' }) => (
   <article className={`metric-card metric-card--${tone}`}>
     <span className="metric-card__label">{label}</span>
     <strong className="metric-card__value">
-      {formatValue(value)}
-      {unit ? <small>{unit}</small> : null}
+      {typeof value === 'string' ? value : formatValue(value)}
+      {unit && typeof value === 'number' ? <small>{unit}</small> : null}
     </strong>
   </article>
 );

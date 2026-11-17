@@ -14,14 +14,20 @@ from typing import AsyncIterator
 
 import uvicorn
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.api.routes.habitability import router as habitability_router
-from app.api.routes.indicators import router as indicators_router
+from app.api.routes.indicators import (
+    ElevationIndicatorProvider,
+    router as indicators_router,
+    register_provider,
+)
 from app.api.routes.satellite import router as satellite_router
 from app.api.routes.soil import router as soil_router
 from app.api.routes.vegetation import router as vegetation_router
+from app.api.routes.elevation import router as elevation_router
 
 # Validated once at import time; invalid configuration stops startup.
 settings = get_settings()
@@ -42,6 +48,12 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         settings.service_version,
         settings.environment,
     )
+    # Register data providers for the indicators catalog.
+    try:
+        register_provider("elevation", ElevationIndicatorProvider())
+        logger.info("Registered elevation indicator provider (USGS 3DEP EPQS).")
+    except Exception:
+        logger.exception("Failed to register elevation indicator provider.")
     yield
     logger.info("Shutting down %s", settings.service_name)
 
@@ -57,11 +69,20 @@ app = FastAPI(
     openapi_url="/openapi.json" if settings.docs_enabled else None,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Accept"],
+)
+
 app.include_router(indicators_router)
 app.include_router(soil_router)
 app.include_router(satellite_router)
 app.include_router(vegetation_router)
 app.include_router(habitability_router)
+app.include_router(elevation_router)
 
 
 @app.exception_handler(Exception)

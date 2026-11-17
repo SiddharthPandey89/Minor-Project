@@ -31,12 +31,23 @@ class USGSElevationClient:
             provider=self.provider_name,
             params={"x": longitude, "y": latitude, "units": units, "wkid": 4326, "includeDate": "false"},
         )
-        if not isinstance(payload, dict) or not _is_number(payload.get("value")):
+        if not isinstance(payload, dict):
+            raise InvalidQueryError("USGS EPQS returned an invalid response.")
+        raw_value = payload.get("value")
+        elevation_m = None
+        if isinstance(raw_value, (int, float)) and not isinstance(raw_value, bool):
+            elevation_m = float(raw_value)
+        elif isinstance(raw_value, str):
+            try:
+                elevation_m = float(raw_value.strip())
+            except (ValueError, TypeError):
+                elevation_m = None
+        if elevation_m is None or not math.isfinite(elevation_m):
             raise InvalidQueryError("USGS EPQS returned no numeric elevation for the point.")
         record = {
             "latitude": latitude,
             "longitude": longitude,
-            "elevation": float(payload["value"]),
+            "elevation": elevation_m,
             "unit": str(payload.get("unit") or units),
             "source_raster": payload.get("raster_name"),
         }

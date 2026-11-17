@@ -48,6 +48,9 @@ def _read(name: str, default: str) -> str:
     return value.strip()
 
 
+OPENTOPOGRAPHY_API_KEY = _read("OPENTOPOGRAPHY_API_KEY", "")
+
+
 def _parse_environment(raw: str) -> str:
     value = raw.lower()
     if value not in ALLOWED_ENVIRONMENTS:

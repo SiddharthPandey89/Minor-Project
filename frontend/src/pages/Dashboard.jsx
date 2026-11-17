@@ -7,7 +7,7 @@ import EarthMap from '../components/map/EarthMap.jsx';
 import DashboardPanel from '../components/dashboard/Dashboard.jsx';
 import Loader from '../components/common/Loader.jsx';
 import ErrorMessage from '../components/common/ErrorMessage.jsx';
-import { searchPlaces, requestWeatherAnalysis, requestHabitabilityAnalysis } from '../services/analysisService.js';
+import { searchPlaces, requestWeatherAnalysis, requestHabitabilityAnalysis, requestElevationAnalysis } from '../services/analysisService.js';
 import { formatMatchType } from '../utils/formatters.js';
 import { useDebounce } from '../hooks/useDebounce.js';
 import { SEARCH_MIN_QUERY_LENGTH } from '../utils/constants.js';
@@ -75,11 +75,14 @@ export default function Dashboard() {
 
   const [analysis, setAnalysis] = useState(null);
   const [habitability, setHabitability] = useState(null);
+  const [elevation, setElevation] = useState(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [soilLoading, setSoilLoading] = useState(false);
   const [vegetationLoading, setVegetationLoading] = useState(false);
+  const [elevationLoading, setElevationLoading] = useState(false);
   const [weatherError, setWeatherError] = useState('');
   const [habitabilityError, setHabitabilityError] = useState('');
+  const [elevationError, setElevationError] = useState('');
   const [soilFailed, setSoilFailed] = useState(false);
   const [vegetationFailed, setVegetationFailed] = useState(false);
   const [habitabilityStatus, setHabitabilityStatus] = useState('idle');
@@ -158,16 +161,19 @@ export default function Dashboard() {
     const isRetry = retryModules.length > 0;
 
     setWeatherLoading(true);
+    setElevationLoading(true);
     setHabitabilityStatus(isRetry ? 'retrying' : 'idle');
     setSoilLoading(retryModules.includes('soil') || !isRetry);
     setVegetationLoading(retryModules.includes('vegetation') || !isRetry);
     setWeatherError('');
     setHabitabilityError('');
+    setElevationError('');
 
     try {
-      const [weatherResult, habitabilityResult] = await Promise.allSettled([
+      const [weatherResult, habitabilityResult, elevationResult] = await Promise.allSettled([
         requestWeatherAnalysis(payload),
         requestHabitabilityAnalysis({ ...payload, retryModules }),
+        requestElevationAnalysis({ latitude: selectedLocation.latitude, longitude: selectedLocation.longitude }),
       ]);
       if (controller.signal.aborted) return;
 
@@ -201,9 +207,17 @@ export default function Dashboard() {
         setVegetationFailed(true);
         setHabitabilityStatus('unavailable');
       }
+
+      if (elevationResult.status === 'fulfilled') {
+        setElevation(elevationResult.value);
+      } else {
+        setElevation(null);
+        setElevationError(elevationResult.reason?.message || 'Elevation analysis request failed.');
+      }
     } finally {
       if (!controller.signal.aborted) {
         setWeatherLoading(false);
+        setElevationLoading(false);
         setSoilLoading(false);
         setVegetationLoading(false);
         analysisControllerRef.current = null;
@@ -211,7 +225,7 @@ export default function Dashboard() {
     }
   }, [selectedLocation, label, soilFailed, vegetationFailed]);
 
-  const habitabilityLoading = soilLoading || vegetationLoading;
+  const habitabilityLoading = soilLoading || vegetationLoading || elevationLoading;
   const canAnalyze = Boolean(selectedLocation) && !weatherLoading && !habitabilityLoading;
   const showSuggestions = query.trim().length >= SEARCH_MIN_QUERY_LENGTH && (searching || searchError || suggestions.length > 0);
 
@@ -327,11 +341,14 @@ export default function Dashboard() {
               habitabilityLoading={habitabilityLoading}
               soilLoading={soilLoading}
               vegetationLoading={vegetationLoading}
+              elevationLoading={elevationLoading}
               habitabilityStatus={habitabilityStatus}
               weatherError={weatherError}
               habitabilityError={habitabilityError}
+              elevationError={elevationError}
               analysis={analysis}
               habitability={habitability}
+              elevation={elevation}
             />
 
             <Footer />

@@ -7,6 +7,7 @@ const SIDEBAR_ITEMS = [
   { id: 'weather-analysis', label: 'Weather Analysis', icon: '🌡️' },
   { id: 'soil-analysis', label: 'Soil Analysis', icon: '🌱' },
   { id: 'vegetation-analysis', label: 'Vegetation Analysis', icon: '🌿' },
+  { id: 'elevation-terrain', label: 'Elevation / Terrain', icon: '⛰️' },
   { id: 'habitability-assessment', label: 'Habitability Assessment', icon: '📊' },
 ];
 
