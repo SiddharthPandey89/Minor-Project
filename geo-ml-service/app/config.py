@@ -34,6 +34,7 @@ DEFAULT_ENVIRONMENT = "development"
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8000
 DEFAULT_LOG_LEVEL = "info"
+DEFAULT_DEV_CORS_ORIGINS = ("http://localhost:5173", "http://localhost:3000")
 
 
 class ConfigError(ValueError):
@@ -85,6 +86,15 @@ def _parse_log_level(raw: str) -> str:
     return value
 
 
+def _parse_cors_origins(raw: str, environment: str) -> tuple[str, ...]:
+    configured = tuple(origin.strip() for origin in raw.split(",") if origin.strip())
+    if environment == "production":
+        return configured
+    if not configured:
+        return DEFAULT_DEV_CORS_ORIGINS
+    return tuple(dict.fromkeys((*configured, *DEFAULT_DEV_CORS_ORIGINS)))
+
+
 @dataclass(frozen=True)
 class Settings:
     """Validated, immutable runtime configuration."""
@@ -95,6 +105,7 @@ class Settings:
     host: str
     port: int
     log_level: str  # lowercase name, e.g. "info" (uvicorn-compatible)
+    cors_origins: tuple[str, ...]
 
     @property
     def is_production(self) -> bool:
@@ -122,6 +133,10 @@ def load_settings() -> Settings:
 
     # Development defaults to verbose logs; an explicit LOG_LEVEL always wins.
     default_level = "debug" if environment == "development" else DEFAULT_LOG_LEVEL
+    cors_origins = _parse_cors_origins(
+        _read("CORS_ORIGINS", _read("CORS_ORIGIN", "")),
+        environment,
+    )
 
     return Settings(
         service_name=SERVICE_NAME,
@@ -130,6 +145,7 @@ def load_settings() -> Settings:
         host=_parse_host(_read("ML_SERVICE_HOST", DEFAULT_HOST)),
         port=_parse_port(_read("ML_SERVICE_PORT", str(DEFAULT_PORT))),
         log_level=_parse_log_level(_read("LOG_LEVEL", default_level)),
+        cors_origins=cors_origins,
     )
 
 
