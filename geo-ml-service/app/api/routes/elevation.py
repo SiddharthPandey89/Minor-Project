@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 
 OPEN_METEO_ELEVATION_URL = "https://api.open-meteo.com/v1/elevation"
 OPEN_ELEVATION_URL = "https://api.open-elevation.com/api/v1/lookup"
+OPENTOPODATA_URL = "https://api.opentopodata.org/v1/srtm30m"
 
 
 def _try_openmeteo_elevation(request, now):
@@ -96,6 +97,41 @@ def _try_open_elevation(request, now):
         return None
     except Exception as exc:
         logger.exception("Open-Elevation unexpected error for %s, %s: %s: %s", request.latitude, request.longitude, type(exc).__name__, exc)
+        return None
+
+def _try_opentopodata(request, now):
+    """Fallback: OpenTopoData SRTM (free, global, no key required)."""
+    url = f"{OPENTOPODATA_URL}?locations={request.latitude},{request.longitude}"
+    try:
+        req = UrlRequest(url, headers={"Accept": "application/json", "User-Agent": "earth-geointelligence-ml-service/0.1"})
+        with urlopen(req, timeout=15.0) as response:
+            raw = response.read()
+            data = _json.loads(raw.decode("utf-8"))
+        results = data.get("results")
+        if not isinstance(results, list) or not results:
+            logger.warning("OpenTopoData returned no results: %s", data)
+            return None
+        elevation_m = results[0].get("elevation")
+        if not isinstance(elevation_m, (int, float)) or isinstance(elevation_m, bool) or not math.isfinite(elevation_m):
+            logger.warning("OpenTopoData returned invalid value: %s", elevation_m)
+            return None
+        return _build_response(
+            request=request,
+            now=now,
+            elevation_m=float(elevation_m),
+            data_available=True,
+            data_source="OpenTopoData SRTM 30m",
+            source_url=OPENTOPODATA_URL,
+            method="OpenTopoData SRTM 30m elevation (free, global, no API key required).",
+        )
+    except (URLError, HTTPError, TimeoutError, OSError) as exc:
+        logger.error("OpenTopoData network error for %s, %s: %s: %s", request.latitude, request.longitude, type(exc).__name__, exc)
+        return None
+    except (ValueError, _json.JSONDecodeError) as exc:
+        logger.error("OpenTopoData JSON parse error for %s, %s: %s", request.latitude, request.longitude, exc)
+        return None
+    except Exception as exc:
+        logger.exception("OpenTopoData unexpected error for %s, %s: %s: %s", request.latitude, request.longitude, type(exc).__name__, exc)
         return None
 
 from fastapi import APIRouter
@@ -321,7 +357,7 @@ async def analyze_elevation(
                     ),
                 )
         # USGS returned no record -- try free global fallbacks.
-        for fallback in (_try_openmeteo_elevation, _try_open_elevation):
+        for fallback in (_try_openmeteo_elevation, _try_open_elevation, _try_opentopodata):
             om_result = fallback(request, now)
             if om_result is not None:
                 return om_result
@@ -340,7 +376,7 @@ async def analyze_elevation(
             "USGS EPQS invalid query for %s, %s: %s",
             request.latitude, request.longitude, exc,
         )
-        for fallback in (_try_openmeteo_elevation, _try_open_elevation):
+        for fallback in (_try_openmeteo_elevation, _try_open_elevation, _try_opentopodata):
             om_result = fallback(request, now)
             if om_result is not None:
                 return om_result
@@ -349,12 +385,12 @@ async def analyze_elevation(
             now=now,
             reason=(
                 "No elevation data available from OpenTopography, USGS EPQS, "
-                "Open-Meteo, or Open-Elevation for this location."
+                "Open-Meteo, Open-Elevation, or OpenTopoData for this location."
             ),
         )
     except Exception as exc:
         logger.exception("Elevation analysis failed for %s, %s: %s", request.latitude, request.longitude, exc)
-        for fallback in (_try_openmeteo_elevation, _try_open_elevation):
+        for fallback in (_try_openmeteo_elevation, _try_open_elevation, _try_opentopodata):
             om_result = fallback(request, now)
             if om_result is not None:
                 return om_result
@@ -363,6 +399,6 @@ async def analyze_elevation(
             now=now,
             reason=(
                 "No elevation data available from OpenTopography, USGS EPQS, "
-                "Open-Meteo, or Open-Elevation for this location."
+                "Open-Meteo, Open-Elevation, or OpenTopoData for this location."
             ),
         )
