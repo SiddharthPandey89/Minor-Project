@@ -283,12 +283,14 @@ async def analyze_elevation(
         )
     except InvalidQueryError as exc:
         # USGS EPQS is US-only; an invalid query means the point is outside
-        # USGS coverage. Fall through to the unavailable response rather than
-        # returning a client error.
+        # USGS coverage. Try Open-Meteo global fallback before giving up.
         logger.warning(
             "USGS EPQS invalid query for %s, %s: %s",
             request.latitude, request.longitude, exc,
         )
+        om_result = await _try_openmeteo_elevation(request, now)
+        if om_result is not None:
+            return om_result
         return _build_unavailable_response(
             request=request,
             now=now,
@@ -299,6 +301,9 @@ async def analyze_elevation(
         )
     except Exception as exc:
         logger.exception("Elevation analysis failed for %s, %s", request.latitude, request.longitude)
+        om_result = await _try_openmeteo_elevation(request, now)
+        if om_result is not None:
+            return om_result
         return _build_unavailable_response(
             request=request,
             now=now,
