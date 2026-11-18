@@ -430,6 +430,7 @@ const getHabitabilityAnalysis = async ({ regionName, latitude, longitude, retryM
       regionName: regionName.trim(),
       latitude: validLatitude,
       longitude: validLongitude,
+      source: 'habitability-service',
     });
   } catch (error) {
     weatherError = error?.message || 'Weather data is temporarily unavailable.';

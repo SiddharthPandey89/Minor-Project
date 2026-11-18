@@ -19,6 +19,7 @@ router.post('/', async (req, res) => {
       regionName: body.regionName,
       latitude: body.latitude,
       longitude: body.longitude,
+      source: 'analysis-route',
     });
 
     res.status(200).json({
