@@ -423,11 +423,58 @@ const getHabitabilityAnalysis = async ({ regionName, latitude, longitude, retryM
 
   const validLatitude = toCoordinate(latitude, 'latitude', -90, 90);
   const validLongitude = toCoordinate(longitude, 'longitude', -180, 180);
-  const weather = await getWeatherAnalysis({
-    regionName: regionName.trim(),
-    latitude: validLatitude,
-    longitude: validLongitude,
-  });
+  let weather = null;
+  let weatherError = null;
+  try {
+    weather = await getWeatherAnalysis({
+      regionName: regionName.trim(),
+      latitude: validLatitude,
+      longitude: validLongitude,
+    });
+  } catch (error) {
+    weatherError = error?.message || 'Weather data is temporarily unavailable.';
+    console.error('Weather analysis unavailable for habitability:', weatherError);
+  }
+
+  if (!weather) {
+    return {
+      region: {
+        name: regionName.trim(),
+        latitude: validLatitude,
+        longitude: validLongitude,
+      },
+      assessment: {
+        status: 'insufficient-data',
+        score: null,
+        category: null,
+        confidence: null,
+        conclusion: null,
+        coverage: null,
+        limitingFactor: 'weather',
+        capApplied: false,
+        factors: null,
+        unavailableFactors: ['weather'],
+        explanation: 'Habitability screening could not be completed because weather data is temporarily unavailable. No weather values were fabricated.',
+      },
+      availableIndicators: {},
+      unavailableIndicators: {
+        weather: unavailableIndicator(weatherError || 'Weather data is temporarily unavailable.', {
+          failureType: 'temporary_service_failure',
+          upstreamStatus: 429,
+        }),
+        waterAvailability: unavailableIndicator('No verified surface-water or hydrology dataset is configured for this service.', { failureType: 'not_configured' }),
+        airQuality: unavailableIndicator('No verified air-quality dataset is configured for this service.', { failureType: 'not_configured' }),
+        landCover: unavailableIndicator('No verified land-cover dataset is configured for this service.', { failureType: 'not_configured' }),
+      },
+      sources: [],
+      limitations: [
+        'Weather data was unavailable, so no habitability screening was performed.',
+        'No weather values were fabricated or imputed.',
+      ],
+      mlAssessmentError: 'Weather data unavailable.',
+      retrievedAt: new Date().toISOString(),
+    };
+  }
 
   const availableIndicators = {
     weather: {
