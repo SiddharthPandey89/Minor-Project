@@ -9,9 +9,43 @@ response. Nothing is estimated or fabricated.
 
 from __future__ import annotations
 
+import httpx
 import logging
 import math
 from datetime import datetime, timezone
+
+OPEN_METEO_ELEVATION_URL = "https://api.open-meteo.com/v1/elevation"
+
+
+async def _try_openmeteo_elevation(request, now):
+    """Fallback: Open-Meteo free global elevation (no key required)."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                OPEN_METEO_ELEVATION_URL,
+                params={"latitude": request.latitude, "longitude": request.longitude},
+            )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        elevations = data.get("elevation")
+        if not isinstance(elevations, list) or not elevations:
+            return None
+        elevation_m = elevations[0]
+        if not isinstance(elevation_m, (int, float)) or not math.isfinite(elevation_m):
+            return None
+        return _build_response(
+            request=request,
+            now=now,
+            elevation_m=float(elevation_m),
+            data_available=True,
+            data_source="Open-Meteo Elevation API",
+            source_url=OPEN_METEO_ELEVATION_URL,
+            method="Open-Meteo Elevation API (free, global, no API key required).",
+        )
+    except Exception as exc:
+        logger.warning("Open-Meteo elevation fallback failed for %s, %s: %s", request.latitude, request.longitude, exc)
+        return None
 
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -235,13 +269,16 @@ async def analyze_elevation(
                         "real DEM-based elevation, not modelled or estimated)."
                     ),
                 )
-        # USGS returned no record — fall through to unavailable response.
+        # USGS returned no record -- try Open-Meteo global fallback.
+        om_result = await _try_openmeteo_elevation(request, now)
+        if om_result is not None:
+            return om_result
         return _build_unavailable_response(
             request=request,
             now=now,
             reason=(
-                "No elevation data available from OpenTopography or USGS EPQS "
-                "for this location."
+                "No elevation data available from OpenTopography, USGS EPQS, "
+                "or Open-Meteo for this location."
             ),
         )
     except InvalidQueryError as exc:
@@ -256,8 +293,8 @@ async def analyze_elevation(
             request=request,
             now=now,
             reason=(
-                "No elevation data available from OpenTopography or USGS EPQS "
-                "for this location."
+                "No elevation data available from OpenTopography, USGS EPQS, "
+                "or Open-Meteo for this location."
             ),
         )
     except Exception as exc:
@@ -266,7 +303,7 @@ async def analyze_elevation(
             request=request,
             now=now,
             reason=(
-                "No elevation data available from OpenTopography or USGS EPQS "
-                "for this location."
+                "No elevation data available from OpenTopography, USGS EPQS, "
+                "or Open-Meteo for this location."
             ),
         )
