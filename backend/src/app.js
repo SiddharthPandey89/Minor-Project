@@ -5,6 +5,7 @@ import regionsRouter from './routes/region.routes.js';
 import analysisRouter from './routes/analysis.routes.js';
 import habitabilityRouter from './routes/habitability.routes.js';
 import aiRouter from './routes/ai.routes.js';
+import elevationRouter from './routes/elevation.routes.js';
 
 const app = express();
 
@@ -67,5 +68,6 @@ app.use('/api/regions', regionsRouter);
 app.use('/api/analysis', analysisRouter);
 app.use('/api/habitability', habitabilityRouter);
 app.use('/api/ai', aiRouter);
+app.use('/api/elevation', elevationRouter);
 
 export default app;

@@ -128,7 +128,7 @@ export async function requestHabitabilityAnalysis({ regionName, latitude, longit
 }
 
 export async function requestElevationAnalysis({ latitude, longitude }) {
-  const response = await fetch(`${ML_SERVICE_URL}/api/v1/elevation/analyze`, {
+  const response = await fetch(`${API_BASE_URL}/api/elevation`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ latitude, longitude }),
