@@ -44,11 +44,22 @@ def _try_openmeteo_elevation(request, now):
             source_url=OPEN_METEO_ELEVATION_URL,
             method="Open-Meteo Elevation API (free, global, no API key required).",
         )
-    except (URLError, HTTPError, TimeoutError, OSError, ValueError, _json.JSONDecodeError) as exc:
-        logger.warning("Open-Meteo elevation fallback failed for %s, %s: %s", request.latitude, request.longitude, exc)
+    except HTTPError as exc:
+        body = ""
+        try:
+            body = exc.read(512).decode("utf-8", errors="replace").strip()
+        except Exception:
+            body = "<unreadable>"
+        logger.error("Open-Meteo elevation HTTPError for %s, %s: status=%s body=%s", request.latitude, request.longitude, exc.code, body)
+        return None
+    except (URLError, TimeoutError, OSError) as exc:
+        logger.error("Open-Meteo elevation network error for %s, %s: %s: %s", request.latitude, request.longitude, type(exc).__name__, exc)
+        return None
+    except (ValueError, _json.JSONDecodeError) as exc:
+        logger.error("Open-Meteo elevation JSON parse error for %s, %s: %s", request.latitude, request.longitude, exc)
         return None
     except Exception as exc:
-        logger.exception("Open-Meteo elevation unexpected error for %s, %s", request.latitude, request.longitude)
+        logger.exception("Open-Meteo elevation unexpected error for %s, %s: %s: %s", request.latitude, request.longitude, type(exc).__name__, exc)
         return None
 
 from fastapi import APIRouter
@@ -304,7 +315,7 @@ async def analyze_elevation(
             ),
         )
     except Exception as exc:
-        logger.exception("Elevation analysis failed for %s, %s", request.latitude, request.longitude)
+        logger.exception("Elevation analysis failed for %s, %s: %s", request.latitude, request.longitude, exc)
         om_result = _try_openmeteo_elevation(request, now)
         if om_result is not None:
             return om_result
