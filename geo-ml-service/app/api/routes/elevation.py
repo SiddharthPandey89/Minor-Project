@@ -9,7 +9,9 @@ response. Nothing is estimated or fabricated.
 
 from __future__ import annotations
 
-import httpx
+import json as _json
+from urllib.request import urlopen, Request as UrlRequest
+from urllib.error import URLError, HTTPError
 import logging
 import math
 from datetime import datetime, timezone
@@ -17,22 +19,21 @@ from datetime import datetime, timezone
 OPEN_METEO_ELEVATION_URL = "https://api.open-meteo.com/v1/elevation"
 
 
-async def _try_openmeteo_elevation(request, now):
+def _try_openmeteo_elevation(request, now):
     """Fallback: Open-Meteo free global elevation (no key required)."""
+    url = f"{OPEN_METEO_ELEVATION_URL}?latitude={request.latitude}&longitude={request.longitude}"
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                OPEN_METEO_ELEVATION_URL,
-                params={"latitude": request.latitude, "longitude": request.longitude},
-            )
-        if resp.status_code != 200:
-            return None
-        data = resp.json()
+        req = UrlRequest(url, headers={"Accept": "application/json", "User-Agent": "earth-geointelligence-ml-service/0.1"})
+        with urlopen(req, timeout=15.0) as response:
+            raw = response.read()
+            data = _json.loads(raw.decode("utf-8"))
         elevations = data.get("elevation")
         if not isinstance(elevations, list) or not elevations:
+            logger.warning("Open-Meteo elevation returned no elevation array: %s", data)
             return None
         elevation_m = elevations[0]
-        if not isinstance(elevation_m, (int, float)) or not math.isfinite(elevation_m):
+        if not isinstance(elevation_m, (int, float)) or isinstance(elevation_m, bool) or not math.isfinite(elevation_m):
+            logger.warning("Open-Meteo elevation returned invalid value: %s", elevation_m)
             return None
         return _build_response(
             request=request,
@@ -43,8 +44,11 @@ async def _try_openmeteo_elevation(request, now):
             source_url=OPEN_METEO_ELEVATION_URL,
             method="Open-Meteo Elevation API (free, global, no API key required).",
         )
-    except Exception as exc:
+    except (URLError, HTTPError, TimeoutError, OSError, ValueError, _json.JSONDecodeError) as exc:
         logger.warning("Open-Meteo elevation fallback failed for %s, %s: %s", request.latitude, request.longitude, exc)
+        return None
+    except Exception as exc:
+        logger.exception("Open-Meteo elevation unexpected error for %s, %s", request.latitude, request.longitude)
         return None
 
 from fastapi import APIRouter
@@ -270,7 +274,7 @@ async def analyze_elevation(
                     ),
                 )
         # USGS returned no record -- try Open-Meteo global fallback.
-        om_result = await _try_openmeteo_elevation(request, now)
+        om_result = _try_openmeteo_elevation(request, now)
         if om_result is not None:
             return om_result
         return _build_unavailable_response(
@@ -288,7 +292,7 @@ async def analyze_elevation(
             "USGS EPQS invalid query for %s, %s: %s",
             request.latitude, request.longitude, exc,
         )
-        om_result = await _try_openmeteo_elevation(request, now)
+        om_result = _try_openmeteo_elevation(request, now)
         if om_result is not None:
             return om_result
         return _build_unavailable_response(
@@ -301,7 +305,7 @@ async def analyze_elevation(
         )
     except Exception as exc:
         logger.exception("Elevation analysis failed for %s, %s", request.latitude, request.longitude)
-        om_result = await _try_openmeteo_elevation(request, now)
+        om_result = _try_openmeteo_elevation(request, now)
         if om_result is not None:
             return om_result
         return _build_unavailable_response(
