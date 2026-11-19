@@ -151,6 +151,15 @@ class ElevationAnalysisTests(TestCase):
         ), patch(
             "app.api.routes.elevation.USGSElevationClient.query_point",
             side_effect=Exception("Network timeout"),
+        ), patch(
+            "app.api.routes.elevation._try_openmeteo_elevation",
+            return_value=None,
+        ), patch(
+            "app.api.routes.elevation._try_open_elevation",
+            return_value=None,
+        ), patch(
+            "app.api.routes.elevation._try_opentopodata",
+            return_value=None,
         ):
             result = asyncio.run(
                 analyze_elevation(
@@ -178,6 +187,15 @@ class ElevationAnalysisTests(TestCase):
         ), patch(
             "app.api.routes.elevation.USGSElevationClient.query_point",
             side_effect=InvalidQueryError("Invalid coordinates"),
+        ), patch(
+            "app.api.routes.elevation._try_openmeteo_elevation",
+            return_value=None,
+        ), patch(
+            "app.api.routes.elevation._try_open_elevation",
+            return_value=None,
+        ), patch(
+            "app.api.routes.elevation._try_opentopodata",
+            return_value=None,
         ):
             result = asyncio.run(
                 analyze_elevation(

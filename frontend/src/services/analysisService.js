@@ -1,4 +1,5 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '');
+const REQUEST_TIMEOUT_MS = 45000;
 const ML_SERVICE_URL = (import.meta.env.VITE_ML_SERVICE_URL || 'http://localhost:8000').replace(/\/$/, '');
 const GEOCODING_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 const SEARCH_RESULT_LIMIT = 100;

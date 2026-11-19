@@ -1,11 +1,11 @@
 services:
 
   # ==================================
-  # 1. FRONTEND - REACT + VITE
+  # 1. FRONTEND - REACT + VITE (Static)
   # ==================================
 
   - type: web
-    name: earthvision
+    name: terrax-frontend
     runtime: static
 
     buildCommand: cd frontend && npm install && npm run build
@@ -15,6 +15,12 @@ services:
 
     envVars:
       - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: terrax-backend
+          envVarKey: RENDER_EXTERNAL_URL
+
+      - key: VITE_ML_SERVICE_URL
         fromService:
           type: web
           name: terrax-backend
@@ -52,8 +58,20 @@ services:
       - key: ML_SERVICE_URL
         fromService:
           type: web
-          name: terrax-geointelligence-ml
+          name: terrax-ml
           envVarKey: RENDER_EXTERNAL_URL
+
+      - key: CORS_ORIGIN
+        fromService:
+          type: web
+          name: terrax-frontend
+          envVarKey: RENDER_EXTERNAL_URL
+
+      - key: WEATHERAPI_KEY
+        sync: false
+
+      - key: OPENWEATHERMAP_KEY
+        sync: false
 
 
   # ==================================
@@ -61,7 +79,7 @@ services:
   # ==================================
 
   - type: web
-    name: terrax-geointelligence-ml
+    name: terrax-ml
     runtime: python
     plan: free
     region: singapore
@@ -81,3 +99,18 @@ services:
 
       - key: PYTHON_VERSION
         value: 3.12.8
+
+      - key: LOG_LEVEL
+        value: info
+
+      - key: CORS_ORIGINS
+        fromService:
+          type: web
+          name: terrax-frontend
+          envVarKey: RENDER_EXTERNAL_URL
+
+      - key: OPENTOPOGRAPHY_API_KEY
+        sync: false
+
+      - key: COPERNICUS_ACCESS_TOKEN
+        sync: false
