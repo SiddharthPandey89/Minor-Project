@@ -7,6 +7,22 @@ import EmptyState from '../components/common/EmptyState.jsx';
 import TrendChart from '../components/charts/TrendChart.jsx';
 import { API_BASE_URL } from '../utils/constants.js';
 
+const inputStyle = {
+  width: '100%',
+  padding: '13px 12px',
+  border: '1px solid var(--line)',
+  background: '#081523',
+  color: '#f0f7ff',
+  borderRadius: '6px',
+  fontFamily: "'DM Mono', monospace",
+  fontSize: '0.85rem',
+  outline: 'none',
+  boxShadow: 'none',
+  WebkitTextFillColor: '#f0f7ff',
+  appearance: 'none',
+  WebkitAppearance: 'none',
+};
+
 const History = () => {
   const [lat, setLat] = useState('23.2599');
   const [lon, setLon] = useState('77.4126');
@@ -44,6 +60,8 @@ const History = () => {
         const json2 = await res2.json();
         if (res2.ok && json2.success) setCompareData(json2.data);
         else setCompareData(null);
+      } else {
+        setCompareData(null);
       }
     } catch (err) {
       setError(err.message || 'Historical analysis failed.');
@@ -70,113 +88,209 @@ const History = () => {
   const precipData = toChartData(data?.daily, 'precipitation');
   const humidityData = toChartData(data?.daily, 'humidity');
 
-  const compareMaxTemp = compareData?.daily ? avg(compareData.daily.map((d) => d.temperatureMax)) : null;
   const currentMaxTemp = data?.daily ? avg(data.daily.map((d) => d.temperatureMax)) : null;
+  const compareMaxTemp = compareData?.daily ? avg(compareData.daily.map((d) => d.temperatureMax)) : null;
+  const currentMeanTemp = data?.daily ? avg(data.daily.map((d) => d.temperatureMean)) : null;
+  const compareMeanTemp = compareData?.daily ? avg(compareData.daily.map((d) => d.temperatureMean)) : null;
+  const currentPrecip = data?.daily ? avg(data.daily.map((d) => d.precipitation)) : null;
+  const comparePrecip = compareData?.daily ? avg(compareData.daily.map((d) => d.precipitation)) : null;
 
   return (
-    <div className="page history-page">
-      <Card padding={false}>
-        <Card.Header>
-          <div>
-            <p className="eyebrow">HISTORICAL ANALYSIS</p>
-            <h2>Environmental trends over time</h2>
+    <div className="dashboard">
+      <div className="intro-row">
+        <div>
+          <p className="eyebrow">HISTORICAL ANALYSIS</p>
+          <h1>Environmental <span>trends</span></h1>
+          <p className="intro-copy">
+            Explore historical weather patterns, temperature trends, and precipitation data
+            for any location using Open-Meteo Archive. Select a date range and location to
+            visualize environmental changes over time.
+          </p>
+        </div>
+        <div className="intro-meta">
+          <span>DATA SOURCE</span>
+          <strong>Open-Meteo Archive</strong>
+          <small>Free historical weather data. No API key required.</small>
+        </div>
+      </div>
+
+      <div className="control-bar panel">
+        <div className="search-form" style={{ flex: '0 0 120px' }}>
+          <label className="field-label">Latitude</label>
+          <div className="search-form__input">
+            <input
+              type="number"
+              step="any"
+              placeholder="23.2599"
+              value={lat}
+              onChange={(e) => setLat(e.target.value)}
+              style={inputStyle}
+            />
           </div>
-        </Card.Header>
-        <Card.Body>
-          <div className="history-controls">
-            <div className="control-group">
-              <label>Latitude</label>
-              <input type="number" step="any" value={lat} onChange={(e) => setLat(e.target.value)} />
+        </div>
+        <div className="search-form" style={{ flex: '0 0 120px' }}>
+          <label className="field-label">Longitude</label>
+          <div className="search-form__input">
+            <input
+              type="number"
+              step="any"
+              placeholder="77.4126"
+              value={lon}
+              onChange={(e) => setLon(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+        </div>
+        <div className="search-form" style={{ flex: '0 0 160px' }}>
+          <label className="field-label">Start date</label>
+          <div className="search-form__input">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+        </div>
+        <div className="search-form" style={{ flex: '0 0 160px' }}>
+          <label className="field-label">End date</label>
+          <div className="search-form__input">
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--muted)', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+          <input
+            type="checkbox"
+            checked={showCompare}
+            onChange={(e) => setShowCompare(e.target.checked)}
+            style={{ accentColor: 'var(--cyan)' }}
+          />
+          Compare periods
+        </label>
+        <button className="analyze-button" style={{ flex: '0 0 auto', width: 'auto', padding: '13px 24px' }} onClick={fetchHistory} disabled={loading}>
+          {loading ? 'Loading...' : 'Fetch history'}
+        </button>
+      </div>
+
+      {showCompare && (
+        <div className="control-bar panel" style={{ marginTop: '0' }}>
+          <div className="search-form" style={{ flex: '0 0 160px' }}>
+            <label className="field-label">Compare start</label>
+            <div className="search-form__input">
+              <input
+                type="date"
+                value={compareStart}
+                onChange={(e) => setCompareStart(e.target.value)}
+                style={inputStyle}
+              />
             </div>
-            <div className="control-group">
-              <label>Longitude</label>
-              <input type="number" step="any" value={lon} onChange={(e) => setLon(e.target.value)} />
+          </div>
+          <div className="search-form" style={{ flex: '0 0 160px' }}>
+            <label className="field-label">Compare end</label>
+            <div className="search-form__input">
+              <input
+                type="date"
+                value={compareEnd}
+                onChange={(e) => setCompareEnd(e.target.value)}
+                style={inputStyle}
+              />
             </div>
-            <div className="control-group">
-              <label>Start date</label>
-              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          </div>
+        </div>
+      )}
+
+      {loading && <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}><Loader size="lg" /></div>}
+
+      {error && <ErrorMessage message={error} />}
+
+      {data && (
+        <>
+          <div className="results-section">
+            <div className="section-heading">
+              <h2>Historical weather trends</h2>
             </div>
-            <div className="control-group">
-              <label>End date</label>
-              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            <div className="metric-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+              <TrendChart data={maxTempData} title="Maximum temperature" unit="°C" />
+              <TrendChart data={minTempData} title="Minimum temperature" unit="°C" />
+              <TrendChart data={meanTempData} title="Average temperature" unit="°C" />
+              <TrendChart data={precipData} title="Daily precipitation" unit="mm" />
+              <TrendChart data={humidityData} title="Relative humidity" unit="%" />
             </div>
-            <label className="compare-toggle">
-              <input type="checkbox" checked={showCompare} onChange={(e) => setShowCompare(e.target.checked)} />
-              Compare periods
-            </label>
-            <Button onClick={fetchHistory} disabled={loading}>
-              {loading ? 'Loading...' : 'Fetch history'}
-            </Button>
           </div>
 
-          {showCompare && (
-            <div className="history-controls compare-controls">
-              <div className="control-group">
-                <label>Compare start</label>
-                <input type="date" value={compareStart} onChange={(e) => setCompareStart(e.target.value)} />
+          {showCompare && compareData && (
+            <div className="results-section">
+              <div className="section-heading">
+                <h2>Period comparison</h2>
               </div>
-              <div className="control-group">
-                <label>Compare end</label>
-                <input type="date" value={compareEnd} onChange={(e) => setCompareEnd(e.target.value)} />
+              <div className="provenance">
+                <div>
+                  <span className="provenance__label">CURRENT PERIOD AVG MAX TEMP</span>
+                  <strong>{currentMaxTemp !== null ? `${currentMaxTemp.toFixed(1)}°C` : 'N/A'}</strong>
+                </div>
+                <div>
+                  <span className="provenance__label">COMPARE PERIOD AVG MAX TEMP</span>
+                  <strong>{compareMaxTemp !== null ? `${compareMaxTemp.toFixed(1)}°C` : 'N/A'}</strong>
+                </div>
+                <div>
+                  <span className="provenance__label">CHANGE</span>
+                  <strong style={{ color: currentMaxTemp !== null && compareMaxTemp !== null && currentMaxTemp > compareMaxTemp ? 'var(--danger)' : 'var(--cyan)' }}>
+                    {currentMaxTemp !== null && compareMaxTemp !== null
+                      ? `${currentMaxTemp - compareMaxTemp > 0 ? '+' : ''}${(currentMaxTemp - compareMaxTemp).toFixed(1)}°C`
+                      : 'N/A'}
+                  </strong>
+                </div>
+              </div>
+              <div className="provenance" style={{ marginTop: '10px' }}>
+                <div>
+                  <span className="provenance__label">CURRENT AVG MEAN TEMP</span>
+                  <strong>{currentMeanTemp !== null ? `${currentMeanTemp.toFixed(1)}°C` : 'N/A'}</strong>
+                </div>
+                <div>
+                  <span className="provenance__label">COMPARE AVG MEAN TEMP</span>
+                  <strong>{compareMeanTemp !== null ? `${compareMeanTemp.toFixed(1)}°C` : 'N/A'}</strong>
+                </div>
+                <div>
+                  <span className="provenance__label">CURRENT AVG PRECIP</span>
+                  <strong>{currentPrecip !== null ? `${currentPrecip.toFixed(1)}mm` : 'N/A'}</strong>
+                </div>
               </div>
             </div>
           )}
 
-          {loading && <Loader />}
+          <div className="provenance" style={{ marginTop: '24px' }}>
+            <div>
+              <span className="provenance__label">DATA SOURCE</span>
+              <strong>{data.dataProvider}</strong>
+            </div>
+            <div>
+              <span className="provenance__label">RETRIEVED</span>
+              <strong>{new Date(data.retrievedAt).toLocaleString()}</strong>
+            </div>
+            <div>
+              <span className="provenance__label">LOCATION</span>
+              <strong>{data.region.latitude}, {data.region.longitude}</strong>
+            </div>
+            <div>
+              <span className="provenance__label">PERIOD</span>
+              <strong>{data.startDate} to {data.endDate}</strong>
+            </div>
+            <div>
+              <span className="provenance__label">OBSERVATIONS</span>
+              <strong>{data.daily?.length || 0} days</strong>
+            </div>
+          </div>
+        </>
+      )}
 
-          {error && <ErrorMessage message={error} />}
-
-          {data && (
-            <>
-              <div className="history-charts">
-                <TrendChart data={maxTempData} title="Maximum temperature" unit="°C" />
-                <TrendChart data={minTempData} title="Minimum temperature" unit="°C" />
-                <TrendChart data={meanTempData} title="Average temperature" unit="°C" />
-                <TrendChart data={precipData} title="Daily precipitation" unit="mm" />
-                <TrendChart data={humidityData} title="Relative humidity" unit="%" />
-              </div>
-
-              {showCompare && compareData && (
-                <Card padding={false}>
-                  <Card.Header><h3>Period comparison</h3></Card.Header>
-                  <Card.Body>
-                    <div className="comparison-grid">
-                      <div className="comparison-item">
-                        <span className="label">Current period avg max temp</span>
-                        <span className="value">{currentMaxTemp !== null ? currentMaxTemp.toFixed(1) + '°C' : 'N/A'}</span>
-                      </div>
-                      <div className="comparison-item">
-                        <span className="label">Compare period avg max temp</span>
-                        <span className="value">{compareMaxTemp !== null ? compareMaxTemp.toFixed(1) + '°C' : 'N/A'}</span>
-                      </div>
-                      <div className="comparison-item">
-                        <span className="label">Change</span>
-                        <span className="value">
-                          {currentMaxTemp !== null && compareMaxTemp !== null
-                            ? (currentMaxTemp - compareMaxTemp > 0 ? '+' : '') + (currentMaxTemp - compareMaxTemp).toFixed(1) + '°C'
-                            : 'N/A'}
-                        </span>
-                      </div>
-                    </div>
-                  </Card.Body>
-                </Card>
-              )}
-
-              <div className="history-meta">
-                <p>Data source: {data.dataProvider}</p>
-                <p>Retrieved: {data.retrievedAt}</p>
-                <p>Location: {data.region.latitude}, {data.region.longitude}</p>
-                <p>Period: {data.startDate} to {data.endDate}</p>
-                <p>Observations: {data.daily?.length || 0} days</p>
-              </div>
-            </>
-          )}
-
-          {data && (!data.daily || data.daily.length === 0) && (
-            <EmptyState title="No data" description="No historical data available for the selected range." />
-          )}
-        </Card.Body>
-      </Card>
+      {data && (!data.daily || data.daily.length === 0) && (
+        <EmptyState title="No data" description="No historical data available for the selected range." />
+      )}
     </div>
   );
 };
