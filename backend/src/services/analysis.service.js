@@ -366,5 +366,72 @@ const getWeatherAnalysis = async ({ regionName, latitude, longitude, source = 'u
 };
 
 export { INSTANCE_ID, externalWeatherCallCount };
+
+
+const OPEN_METEO_ARCHIVE_URL = 'https://archive-api.open-meteo.com/v1/archive';
+
+export async function getHistoricalWeather({ latitude, longitude, startDate, endDate } = {}) {
+  const validLatitude = toCoordinate(latitude, 'latitude', -90, 90);
+  const validLongitude = toCoordinate(longitude, 'longitude', -180, 180);
+
+  if (typeof startDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+    throw createServiceError('startDate must be in YYYY-MM-DD format.', 400);
+  }
+  if (typeof endDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+    throw createServiceError('endDate must be in YYYY-MM-DD format.', 400);
+  }
+
+  const url = new URL(OPEN_METEO_ARCHIVE_URL);
+  url.search = new URLSearchParams({
+    latitude: String(validLatitude),
+    longitude: String(validLongitude),
+    start_date: startDate,
+    end_date: endDate,
+    daily: 'temperature_2m_max,temperature_2m_min,temperature_2m_mean,precipitation_sum,relative_humidity_2m_mean',
+    timezone: 'UTC',
+  });
+
+  let response;
+  try {
+    response = await fetch(url, { signal: AbortSignal.timeout(30000) });
+  } catch (error) {
+    throw createServiceError('Historical weather request failed.', 503);
+  }
+
+  if (!response.ok) {
+    throw createServiceError('Historical weather provider returned HTTP ' + response.status + '.', response.status >= 500 ? 502 : response.status);
+  }
+
+  let payload;
+  try {
+    payload = await response.json();
+  } catch {
+    throw createServiceError('Historical weather provider returned invalid JSON.', 502);
+  }
+
+  const daily = payload?.daily;
+  if (!daily || !Array.isArray(daily.time)) {
+    throw createServiceError('Historical weather provider returned incomplete data.', 502);
+  }
+
+  const entries = daily.time.map((date, i) => ({
+    date,
+    temperatureMax: daily.temperature_2m_max?.[i] ?? null,
+    temperatureMin: daily.temperature_2m_min?.[i] ?? null,
+    temperatureMean: daily.temperature_2m_mean?.[i] ?? null,
+    precipitation: daily.precipitation_sum?.[i] ?? null,
+    humidity: daily.relative_humidity_2m_mean?.[i] ?? null,
+  }));
+
+  return {
+    region: { latitude: validLatitude, longitude: validLongitude },
+    startDate,
+    endDate,
+    daily: entries,
+    dataProvider: 'Open-Meteo Archive',
+    retrievedAt: new Date().toISOString(),
+  };
+}
+
 export { getWeatherAnalysis };
 export default getWeatherAnalysis;

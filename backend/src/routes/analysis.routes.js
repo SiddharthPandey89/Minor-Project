@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getWeatherAnalysis } from '../services/analysis.service.js';
+import { getWeatherAnalysis, getHistoricalWeather } from '../services/analysis.service.js';
 
 const router = Router();
 
@@ -43,6 +43,35 @@ router.post('/', async (req, res) => {
       success: false,
       message,
     });
+  }
+});
+
+router.get('/history', async (req, res) => {
+  const { latitude, longitude, startDate, endDate } = req.query;
+
+  try {
+    const result = await getHistoricalWeather({
+      latitude: Number(latitude),
+      longitude: Number(longitude),
+      startDate,
+      endDate,
+    });
+
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    const statusCode = Number.isInteger(error?.statusCode)
+      && error.statusCode >= 400
+      && error.statusCode <= 599
+      ? error.statusCode
+      : 500;
+
+    const message = statusCode === 500
+      ? 'Unable to complete historical analysis request.'
+      : error.message || 'Historical analysis request failed.';
+
+    console.error('Historical analysis request failed:', error.message);
+
+    res.status(statusCode).json({ success: false, message });
   }
 });
 
