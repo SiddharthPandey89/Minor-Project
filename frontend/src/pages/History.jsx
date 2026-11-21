@@ -39,6 +39,7 @@ const History = () => {
   const [showCompare, setShowCompare] = useState(false);
   const [anomalyLoading, setAnomalyLoading] = useState(false);
   const [anomalyResult, setAnomalyResult] = useState(null);
+  const [anomalyError, setAnomalyError] = useState(null);
   useEffect(() => {
     try {
       const raw = localStorage.getItem('terrax_selected_location');
