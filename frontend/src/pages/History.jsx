@@ -4,6 +4,7 @@ import Button from '../components/common/Button.jsx';
 import Loader from '../components/common/Loader.jsx';
 import ErrorMessage from '../components/common/ErrorMessage.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
+import TrendChart from '../components/charts/TrendChart.jsx';
 import AnomalyChart from '../components/charts/AnomalyChart.jsx';
 import AnomalyPanel from '../components/analysis/AnomalyPanel.jsx';
 import { API_BASE_URL } from '../utils/constants.js';
@@ -35,6 +36,7 @@ const History = () => {
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
   const [compareData, setCompareData] = useState(null);
+  const [showCompare, setShowCompare] = useState(false);
   const [anomalyLoading, setAnomalyLoading] = useState(false);
   const [anomalyResult, setAnomalyResult] = useState(null);
   const [anomalyError, setAnomalyError] = useState(null);
