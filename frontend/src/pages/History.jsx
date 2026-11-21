@@ -4,7 +4,8 @@ import Button from '../components/common/Button.jsx';
 import Loader from '../components/common/Loader.jsx';
 import ErrorMessage from '../components/common/ErrorMessage.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
-import TrendChart from '../components/charts/TrendChart.jsx';
+import AnomalyChart from '../components/charts/AnomalyChart.jsx';
+import AnomalyPanel from '../components/analysis/AnomalyPanel.jsx';
 import { API_BASE_URL } from '../utils/constants.js';
 
 const inputStyle = {
@@ -34,8 +35,35 @@ const History = () => {
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
   const [compareData, setCompareData] = useState(null);
-  const [showCompare, setShowCompare] = useState(false);
+  const [anomalyLoading, setAnomalyLoading] = useState(false);
+  const [anomalyResult, setAnomalyResult] = useState(null);
+  const [anomalyError, setAnomalyError] = useState(null);
 
+  const detectAnomalies = useCallback(async () => {
+    if (!data?.daily || data.daily.length < 3) {
+      setAnomalyError('Need at least 3 observations for anomaly detection.');
+      return;
+    }
+    setAnomalyLoading(true);
+    setAnomalyError(null);
+    try {
+      const values = data.daily.map((d) => d.temperatureMean).filter((v) => Number.isFinite(v));
+      const timestamps = data.daily.filter((d) => Number.isFinite(d.temperatureMean)).map((d) => d.date);
+      const res = await fetch(`${API_BASE_URL}/api/anomalies/detect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values, timestamps, threshold: 3.5 }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.message || 'Anomaly detection failed.');
+      setAnomalyResult(json);
+    } catch (err) {
+      setAnomalyError(err.message || 'Anomaly detection failed.');
+      setAnomalyResult(null);
+    } finally {
+      setAnomalyLoading(false);
+    }
+  }, [data]);
   const fetchHistory = useCallback(async () => {
     const latitude = parseFloat(lat);
     const longitude = parseFloat(lon);
@@ -290,6 +318,25 @@ const History = () => {
 
       {data && (!data.daily || data.daily.length === 0) && (
         <EmptyState title="No data" description="No historical data available for the selected range." />
+      )}
+
+      {data && data.daily && data.daily.length >= 3 && (
+        <div className="results-section" style={{ marginTop: '24px' }}>
+          <div className="section-heading">
+            <h2>Anomaly detection</h2>
+            <Button onClick={detectAnomalies} disabled={anomalyLoading}>
+              {anomalyLoading ? 'Detecting...' : 'Detect anomalies'}
+            </Button>
+          </div>
+          {anomalyLoading && <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}><Loader size="md" /></div>}
+          {anomalyError && <ErrorMessage message={anomalyError} />}
+          {anomalyResult && (
+            <>
+              <AnomalyChart data={anomalyResult.data} title="Temperature anomalies" />
+              <AnomalyPanel result={anomalyResult} />
+            </>
+          )}
+        </div>
       )}
     </div>
   );
