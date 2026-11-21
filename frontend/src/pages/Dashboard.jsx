@@ -46,13 +46,6 @@ export default function Dashboard() {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [searchMessage, setSearchMessage] = useState('Search for a place or click the map to select coordinates.');
-  useEffect(() => {
-    if (selectedLocation) {
-      try {
-        localStorage.setItem('terrax_selected_location', JSON.stringify(selectedLocation));
-      } catch (e) { /* ignore */ }
-    }
-  }, [selectedLocation]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const analysisControllerRef = useRef(null);
@@ -79,7 +72,14 @@ export default function Dashboard() {
     setSearchMessage(`Saved region "${region.name}" loaded from Explore. Its boundary centroid is selected; click the map or run analysis to refine the point.`);
   }, [location.state]);
 
-  const [analysis, setAnalysis] = useState(null);
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  useEffect(() => {
+    if (selectedLocation) {
+      try {
+        localStorage.setItem('terrax_selected_location', JSON.stringify(selectedLocation));
+      } catch (e) { /* ignore */ }
+    }
+  }, [selectedLocation]);
   const [habitability, setHabitability] = useState(null);
   const [elevation, setElevation] = useState(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
