@@ -56,6 +56,11 @@ const History = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ values, timestamps, threshold: 3.5 }),
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await res.text();
+        throw new Error(`Expected JSON but received ${contentType || 'unknown content'}. ${res.status} ${res.statusText}. ${text.slice(0, 120)}`);
+      }
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.message || 'Anomaly detection failed.');
       setAnomalyResult(json);
