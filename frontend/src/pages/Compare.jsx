@@ -151,7 +151,9 @@ const Compare = () => {
                     </div>
                     <div style={{ marginBottom: '12px' }}>
                       <p className="eyebrow">VEGETATION</p>
-                      <p>NDVI: {h?.availableIndicators?.vegetation?.data?.ndvi ?? 'N/A'}</p>
+                      <p>NDVI: {h?.availableIndicators?.vegetation?.data?.ndvi?.mean ?? 'N/A'} (mean)</p>
+                      <p>Median: {h?.availableIndicators?.vegetation?.data?.ndvi?.median ?? 'N/A'}</p>
+                      <p>Min/Max: {h?.availableIndicators?.vegetation?.data?.ndvi?.minimum ?? 'N/A'} / {h?.availableIndicators?.vegetation?.data?.ndvi?.maximum ?? 'N/A'}</p>
                       <p>Date: {h?.availableIndicators?.vegetation?.data?.observationDate ?? 'N/A'}</p>
                     </div>
                     <div style={{ marginBottom: '12px' }}>
