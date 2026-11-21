@@ -72,6 +72,7 @@ export default function Dashboard() {
     setSearchMessage(`Saved region "${region.name}" loaded from Explore. Its boundary centroid is selected; click the map or run analysis to refine the point.`);
   }, [location.state]);
 
+  const [analysis, setAnalysis] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
   useEffect(() => {
     if (selectedLocation) {
