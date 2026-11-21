@@ -159,6 +159,10 @@ const Compare = () => {
                     <div style={{ marginBottom: '12px' }}>
                       <p className="eyebrow">SOIL</p>
                       <p>Class: {h?.availableIndicators?.soilQuality?.data?.classification ?? 'N/A'}</p>
+                      <p>pH: {h?.availableIndicators?.soilQuality?.data?.properties?.phh2o?.value ?? 'N/A'}</p>
+                      <p>SOC: {h?.availableIndicators?.soilQuality?.data?.properties?.soc?.value ?? 'N/A'} g/kg</p>
+                      <p>Clay: {h?.availableIndicators?.soilQuality?.data?.properties?.clay?.value ?? 'N/A'}%</p>
+                      <p>Sand: {h?.availableIndicators?.soilQuality?.data?.properties?.sand?.value ?? 'N/A'}%</p>
                     </div>
                     <div style={{ marginBottom: '12px' }}>
                       <p className="eyebrow">ELEVATION</p>
