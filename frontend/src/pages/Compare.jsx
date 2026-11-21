@@ -95,8 +95,47 @@ const Compare = () => {
               placeholder="Search location..."
               style={{ flex: 1, minWidth: '200px', padding: '8px', background: '#081523', border: '1px solid var(--line)', color: '#e9f2fb', borderRadius: '6px' }}
             />
-            <Button onClick={clearAll} variant="secondary">Clear all</Button>
-            <Button onClick={runCompare} disabled={locations.length === 0}>Compare</Button>
+            <button
+              onClick={clearAll}
+              style={{
+                background: 'transparent',
+                color: 'var(--cyan, #7de3ff)',
+                border: '1px solid var(--line)',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                fontFamily: "'DM Mono', monospace",
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                transition: 'background 0.15s ease',
+              }}
+            >
+              Clear all
+            </button>
+            <button
+              onClick={runCompare}
+              disabled={locations.length === 0}
+              style={{
+                background: 'linear-gradient(135deg, var(--cyan, #7de3ff), #3b82f6)',
+                color: '#07111e',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                fontFamily: "'DM Mono', monospace",
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+                cursor: locations.length === 0 ? 'not-allowed' : 'pointer',
+                opacity: locations.length === 0 ? 0.5 : 1,
+                transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                boxShadow: '0 0 12px rgba(125, 227, 255, 0.25)',
+              }}
+            >
+              Compare
+            </button>
           </div>
           {searching && <Loader size="sm" />}
           {suggestions.length > 0 && (
