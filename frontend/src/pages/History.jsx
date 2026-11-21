@@ -7,7 +7,7 @@ import EmptyState from '../components/common/EmptyState.jsx';
 import TrendChart from '../components/charts/TrendChart.jsx';
 import AnomalyChart from '../components/charts/AnomalyChart.jsx';
 import AnomalyPanel from '../components/analysis/AnomalyPanel.jsx';
-import { API_BASE_URL } from '../utils/constants.js';
+import { downloadCsv, downloadGeoJson, downloadPdf, safe } from '../utils/export.js';
 
 const inputStyle = {
   width: '100%',
@@ -376,6 +376,22 @@ const History = () => {
               </div>
             </div>
           )}
+
+          <div style={{ display: 'flex', gap: '8px', marginTop: '16px', flexWrap: 'wrap' }}>
+            <button onClick={() => {
+              const rows = [['Month','AvgTemp','MaxTemp','MinTemp','Precip','Humidity','Change']];
+              monthly.forEach((m) => rows.push([m.month, m.avgMean ?? '', m.avgMax ?? '', m.avgMin ?? '', m.precipTotal ?? '', m.avgHum ?? '', m.change ?? '']));
+              downloadCsv('history_monthly.csv', rows);
+            }} style={{ background: 'linear-gradient(135deg, var(--cyan,#7de3ff), #3b82f6)', color: '#07111e', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '0.72rem' }}>Download CSV</button>
+            <button onClick={() => {
+              downloadGeoJson('history.geojson', [{ type: 'Feature', geometry: { type: 'Point', coordinates: [Number(lon), Number(lat)] }, properties: { location: 'History', latitude: Number(lat), longitude: Number(lon) } }]);
+            }} style={{ background: 'transparent', color: 'var(--cyan,#7de3ff)', border: '1px solid var(--line)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '0.72rem' }}>Download GeoJSON</button>
+            <button onClick={() => {
+              const lines = ['TERRAX Historical Analysis', `Location: ${lat}, ${lon}`, `Period: ${startDate} to ${endDate}`, `Observations: ${data?.daily?.length ?? 0}`, 'Monthly:'];
+              monthly.forEach((m) => lines.push(`${m.month}: avg ${m.avgMean?.toFixed(2) ?? 'N/A'} max ${m.avgMax?.toFixed(2) ?? 'N/A'} min ${m.avgMin?.toFixed(2) ?? 'N/A'} precip ${m.precipTotal?.toFixed(1) ?? 'N/A'} change ${m.change?.toFixed(2) ?? 'N/A'}`));
+              downloadPdf('history.pdf', lines);
+            }} style={{ background: 'transparent', color: 'var(--cyan,#7de3ff)', border: '1px solid var(--line)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '0.72rem' }}>Download PDF</button>
+          </div>
 
           <div className="provenance" style={{ marginTop: '24px' }}>
             <div>

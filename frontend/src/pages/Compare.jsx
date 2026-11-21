@@ -4,7 +4,7 @@ import { API_BASE_URL } from '../utils/constants.js';
 import Card from '../components/common/Card.jsx';
 import Button from '../components/common/Button.jsx';
 import Loader from '../components/common/Loader.jsx';
-import ErrorMessage from '../components/common/ErrorMessage.jsx';
+import { downloadCsv, downloadGeoJson, downloadPdf } from '../utils/export.js';
 
 const MAX_LOCATIONS = 3;
 
@@ -41,7 +41,7 @@ const Compare = () => {
 
   const removeLocation = (idx) => {
     setLocations((prev) => prev.filter((_, i) => i !== idx));
-  };
+};
 
   const clearAll = () => { setLocations([]); setResults({}); setErrors({}); };
 
@@ -214,8 +214,47 @@ const Compare = () => {
           );
         })}
       </div>
+      {locations.length > 0 && (
+        <div style={{ display: 'flex', gap: '8px', marginTop: '16px', flexWrap: 'wrap' }}>
+          <button onClick={() => {
+            const rows = [['Location','Latitude','Longitude','Temp','Humidity','Precip','Wind','Habitability','NDVI','Elevation']];
+            locations.forEach((loc, idx) => {
+              const r = results[idx];
+              const w = r?.weather?.analysis;
+              const h = r?.habitability;
+              const e = r?.elevation;
+              rows.push([loc.name, loc.latitude, loc.longitude, w?.current?.temperature ?? '', w?.current?.relativeHumidity ?? '', w?.current?.precipitation ?? '', w?.current?.windSpeed ?? '', h?.assessment?.score ?? '', h?.availableIndicators?.vegetation?.data?.ndvi?.mean ?? '', e?.elevation_m ?? '']);
+            });
+            downloadCsv('compare.csv', rows);
+          }} style={{ background: 'linear-gradient(135deg, var(--cyan,#7de3ff), #3b82f6)', color: '#07111e', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '0.72rem' }}>Download CSV</button>
+          <button onClick={() => {
+            const features = locations.map((loc, idx) => {
+              const r = results[idx];
+              const w = r?.weather?.analysis;
+              const h = r?.habitability;
+              const e = r?.elevation;
+              return { type: 'Feature', geometry: { type: 'Point', coordinates: [loc.longitude, loc.latitude] }, properties: { name: loc.name, temperature: w?.current?.temperature ?? null, humidity: w?.current?.relativeHumidity ?? null, habitability: h?.assessment?.score ?? null, ndvi: h?.availableIndicators?.vegetation?.data?.ndvi?.mean ?? null, elevation: e?.elevation_m ?? null } };
+            });
+            downloadGeoJson('compare.geojson', features);
+          }} style={{ background: 'transparent', color: 'var(--cyan,#7de3ff)', border: '1px solid var(--line)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '0.72rem' }}>Download GeoJSON</button>
+          <button onClick={() => {
+            const lines = ['TERRAX Compare Locations'];
+            locations.forEach((loc, idx) => {
+              const r = results[idx];
+              const w = r?.weather?.analysis;
+              const h = r?.habitability;
+              const e = r?.elevation;
+              lines.push(`${loc.name} (${loc.latitude}, ${loc.longitude})`);
+              lines.push(`  Temp: ${w?.current?.temperature ?? 'N/A'} C, Humidity: ${w?.current?.relativeHumidity ?? 'N/A'}%, Precip: ${w?.current?.precipitation ?? 'N/A'} mm, Wind: ${w?.current?.windSpeed ?? 'N/A'} km/h`);
+              lines.push(`  Habitability: ${h?.assessment?.score ?? 'N/A'} (${h?.assessment?.category ?? 'N/A'})`);
+              lines.push(`  NDVI: ${h?.availableIndicators?.vegetation?.data?.ndvi?.mean ?? 'N/A'}`);
+              lines.push(`  Elevation: ${e?.elevation_m ?? 'N/A'} m`);
+            });
+            downloadPdf('compare.pdf', lines);
+          }} style={{ background: 'transparent', color: 'var(--cyan,#7de3ff)', border: '1px solid var(--line)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '0.72rem' }}>Download PDF</button>
+        </div>
+      )}
+
     </div>
   );
 };
-
-export default Compare;
