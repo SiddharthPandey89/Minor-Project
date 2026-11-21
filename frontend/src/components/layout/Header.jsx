@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: '/explore', label: 'Explore' },
   { to: '/analysis', label: 'Analysis' },
   { to: '/history', label: 'History' },
+  { to: '/compare', label: 'Compare Locations' },
   { to: '/reports', label: 'Reports' },
   { to: '/about', label: 'About' },
 ];

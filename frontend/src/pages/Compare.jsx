@@ -140,18 +140,27 @@ const Compare = () => {
                       <p>Temp: {w?.current?.temperature ?? w?.temperature ?? 'N/A'}°C</p>
                       <p>Max: {w?.current?.temperatureMax ?? w?.temperatureMax ?? 'N/A'}°C</p>
                       <p>Min: {w?.current?.temperatureMin ?? w?.temperatureMin ?? 'N/A'}°C</p>
-                      <p>Humidity: {w?.current?.humidity ?? w?.humidity ?? 'N/A'}%</p>
-                      <p>Precip: {w?.current?.precipitation ?? w?.precipitation ?? 'N/A'} mm</p>
-                      <p>Wind: {w?.current?.windSpeed ?? w?.windSpeed ?? 'N/A'} km/h</p>
+                      <p>Humidity: {w?.data?.analysis?.current?.relativeHumidity ?? 'N/A'}%</p>
+                      <p>Precip: {w?.data?.analysis?.current?.precipitation ?? 'N/A'} mm</p>
+                      <p>Wind: {w?.data?.analysis?.current?.windSpeed ?? 'N/A'} km/h</p>
                     </div>
                     <div style={{ marginBottom: '12px' }}>
                       <p className="eyebrow">HABITABILITY</p>
-                      <p>Score: {h?.score ?? h?.habitabilityScore ?? 'N/A'}</p>
-                      <p>Class: {h?.classification ?? h?.habitabilityClass ?? 'N/A'}</p>
+                      <p>Score: {h?.data?.assessment?.score ?? 'N/A'}</p>
+                      <p>Class: {h?.data?.assessment?.category ?? 'N/A'}</p>
+                    </div>
+                    <div style={{ marginBottom: '12px' }}>
+                      <p className="eyebrow">VEGETATION</p>
+                      <p>NDVI: {h?.data?.availableIndicators?.vegetation?.data?.ndvi ?? 'N/A'}</p>
+                      <p>Date: {h?.data?.availableIndicators?.vegetation?.data?.observationDate ?? 'N/A'}</p>
+                    </div>
+                    <div style={{ marginBottom: '12px' }}>
+                      <p className="eyebrow">SOIL</p>
+                      <p>Class: {h?.data?.availableIndicators?.soilQuality?.data?.classification ?? 'N/A'}</p>
                     </div>
                     <div style={{ marginBottom: '12px' }}>
                       <p className="eyebrow">ELEVATION</p>
-                      <p>{e?.elevation ?? e?.elevation_m ?? 'N/A'} m</p>
+                      <p>{e?.elevation_m ?? 'N/A'} m</p>
                     </div>
                   </>
                 )}
