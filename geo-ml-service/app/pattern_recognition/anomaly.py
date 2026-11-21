@@ -30,9 +30,19 @@ class AnomalyResult:
             "threshold": self.threshold,
             "values": list(self.values),
             "scores": list(self.scores),
-            "anomaly_mask": list(self.anomaly_mask),
-            "original_indices": list(self.original_indices),
-            "observed_count": self.observed_count,
+        "anomaly_mask": list(self.anomaly_mask),
+        "original_indices": list(self.original_indices),
+        "anomalies": [
+            {
+                "index": int(self.original_indices[i]),
+                "value": float(self.values[i]),
+                "score": float(self.scores[i]),
+                "direction": "high" if self.scores[i] > 0 else "low",
+            }
+            for i in range(len(self.values))
+            if self.anomaly_mask[i]
+        ],
+        "observed_count": self.observed_count,
             "missing_count": self.missing_count,
         }
 

@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback } from 'react';
+﻿import React, { useState, useCallback, useEffect } from 'react';
 import Card from '../components/common/Card.jsx';
 import Button from '../components/common/Button.jsx';
 import Loader from '../components/common/Loader.jsx';
@@ -39,7 +39,18 @@ const History = () => {
   const [showCompare, setShowCompare] = useState(false);
   const [anomalyLoading, setAnomalyLoading] = useState(false);
   const [anomalyResult, setAnomalyResult] = useState(null);
-  const [anomalyError, setAnomalyError] = useState(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('terrax_selected_location');
+      if (raw) {
+        const loc = JSON.parse(raw);
+        if (loc && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)) {
+          setLat(String(loc.latitude));
+          setLon(String(loc.longitude));
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }, []);
 
   const detectAnomalies = useCallback(async () => {
     if (!data?.daily || data.daily.length < 3) {
@@ -331,9 +342,35 @@ const History = () => {
         <div className="results-section" style={{ marginTop: '24px' }}>
           <div className="section-heading">
             <h2>Anomaly detection</h2>
-            <Button onClick={detectAnomalies} disabled={anomalyLoading}>
-              {anomalyLoading ? 'Detecting...' : 'Detect anomalies'}
-            </Button>
+            <button
+              onClick={detectAnomalies}
+              disabled={anomalyLoading}
+              style={{
+                background: 'linear-gradient(135deg, var(--cyan, #7de3ff), #3b82f6)',
+                color: '#07111e',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                fontFamily: "'DM Mono', monospace",
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+                cursor: anomalyLoading ? 'not-allowed' : 'pointer',
+                opacity: anomalyLoading ? 0.7 : 1,
+                transition: 'transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease',
+                boxShadow: '0 0 12px rgba(125, 227, 255, 0.25)',
+              }}
+              onMouseEnter={(e) => { if (!anomalyLoading) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+            >
+              {anomalyLoading ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="spinner" style={{ width: '12px', height: '12px', border: '2px solid rgba(7,17,30,0.3)', borderTopColor: '#07111e', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
+                  Detecting...
+                </span>
+              ) : 'Detect anomalies'}
+            </button>
           </div>
           {anomalyLoading && <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}><Loader size="md" /></div>}
           {anomalyError && <ErrorMessage message={anomalyError} />}

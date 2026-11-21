@@ -46,7 +46,13 @@ export default function Dashboard() {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [searchMessage, setSearchMessage] = useState('Search for a place or click the map to select coordinates.');
-  const [selectedLocation, setSelectedLocation] = useState(null);
+  useEffect(() => {
+    if (selectedLocation) {
+      try {
+        localStorage.setItem('terrax_selected_location', JSON.stringify(selectedLocation));
+      } catch (e) { /* ignore */ }
+    }
+  }, [selectedLocation]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const analysisControllerRef = useRef(null);
