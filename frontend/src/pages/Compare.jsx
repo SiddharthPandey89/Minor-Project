@@ -58,7 +58,7 @@ const Compare = () => {
           requestHabitabilityAnalysis({ regionName: loc.name, latitude: loc.latitude, longitude: loc.longitude }),
           requestElevationAnalysis({ latitude: loc.latitude, longitude: loc.longitude }),
         ]);
-        const w = weather.status === 'fulfilled' ? weather.value : null;
+        const w = weather.status === 'fulfilled' ? (weather.value?.data ?? weather.value) : null;
         const h = habitability.status === 'fulfilled' ? habitability.value : null;
         const e = elevation.status === 'fulfilled' ? elevation.value : null;
         newResults[idx] = { weather: w, habitability: h, elevation: e };
@@ -140,9 +140,9 @@ const Compare = () => {
                       <p>Temp: {w?.current?.temperature ?? w?.temperature ?? 'N/A'}°C</p>
                       <p>Max: {w?.current?.temperatureMax ?? w?.temperatureMax ?? 'N/A'}°C</p>
                       <p>Min: {w?.current?.temperatureMin ?? w?.temperatureMin ?? 'N/A'}°C</p>
-                      <p>Humidity: {w?.data?.analysis?.current?.relativeHumidity ?? 'N/A'}%</p>
-                      <p>Precip: {w?.data?.analysis?.current?.precipitation ?? 'N/A'} mm</p>
-                      <p>Wind: {w?.data?.analysis?.current?.windSpeed ?? 'N/A'} km/h</p>
+                      <p>Humidity: {w?.analysis?.current?.relativeHumidity ?? 'N/A'}%</p>
+                      <p>Precip: {w?.analysis?.current?.precipitation ?? 'N/A'} mm</p>
+                      <p>Wind: {w?.analysis?.current?.windSpeed ?? 'N/A'} km/h</p>
                     </div>
                     <div style={{ marginBottom: '12px' }}>
                       <p className="eyebrow">HABITABILITY</p>
@@ -151,12 +151,12 @@ const Compare = () => {
                     </div>
                     <div style={{ marginBottom: '12px' }}>
                       <p className="eyebrow">VEGETATION</p>
-                      <p>NDVI: {h?.data?.availableIndicators?.vegetation?.data?.ndvi ?? 'N/A'}</p>
-                      <p>Date: {h?.data?.availableIndicators?.vegetation?.data?.observationDate ?? 'N/A'}</p>
+                      <p>NDVI: {h?.availableIndicators?.vegetation?.data?.ndvi ?? 'N/A'}</p>
+                      <p>Date: {h?.availableIndicators?.vegetation?.data?.observationDate ?? 'N/A'}</p>
                     </div>
                     <div style={{ marginBottom: '12px' }}>
                       <p className="eyebrow">SOIL</p>
-                      <p>Class: {h?.data?.availableIndicators?.soilQuality?.data?.classification ?? 'N/A'}</p>
+                      <p>Class: {h?.availableIndicators?.soilQuality?.data?.classification ?? 'N/A'}</p>
                     </div>
                     <div style={{ marginBottom: '12px' }}>
                       <p className="eyebrow">ELEVATION</p>
