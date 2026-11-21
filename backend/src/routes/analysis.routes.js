@@ -47,7 +47,9 @@ router.post('/', async (req, res) => {
 });
 
 router.get('/history', async (req, res) => {
-  const { latitude, longitude, startDate, endDate } = req.query;
+  const { latitude, longitude } = req.query;
+  const startDate = req.query.startDate || req.query.start_date;
+  const endDate = req.query.endDate || req.query.end_date;
 
   try {
     const result = await getHistoricalWeather({
