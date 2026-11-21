@@ -12,6 +12,7 @@ const Dashboard = lazy(() => import('../pages/Dashboard.jsx'));
 const Analysis = lazy(() => import('../pages/Analysis.jsx'));
 const Explore = lazy(() => import('../pages/Explore.jsx'));
 const History = lazy(() => import('../pages/History.jsx'));
+const Compare = lazy(() => import('../pages/Compare.jsx'));
 const Reports = lazy(() => import('../pages/Reports.jsx'));
 const About = lazy(() => import('../pages/About.jsx'));
 const NotFound = lazy(() => import('../pages/NotFound.jsx'));
@@ -37,6 +38,10 @@ const router = createBrowserRouter(
     {
       path: '/history',
       element: <History />,
+    },
+    {
+      path: '/compare',
+      element: <Compare />,
     },
     {
       path: '/reports',
