@@ -8,6 +8,7 @@ import TrendChart from '../components/charts/TrendChart.jsx';
 import AnomalyChart from '../components/charts/AnomalyChart.jsx';
 import AnomalyPanel from '../components/analysis/AnomalyPanel.jsx';
 import { downloadCsv, downloadGeoJson, downloadPdf, safe } from '../utils/export.js';
+import { API_BASE_URL } from '../utils/constants.js';
 
 const inputStyle = {
   width: '100%',
