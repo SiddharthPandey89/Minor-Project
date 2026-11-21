@@ -137,17 +137,17 @@ const Compare = () => {
                   <>
                     <div style={{ marginBottom: '12px' }}>
                       <p className="eyebrow">WEATHER</p>
-                      <p>Temp: {w?.current?.temperature ?? w?.temperature ?? 'N/A'}°C</p>
-                      <p>Max: {w?.current?.temperatureMax ?? w?.temperatureMax ?? 'N/A'}°C</p>
-                      <p>Min: {w?.current?.temperatureMin ?? w?.temperatureMin ?? 'N/A'}°C</p>
+                      <p>Temp: {w?.analysis?.current?.temperature ?? 'N/A'}°C</p>
+                      <p>Max: {w?.analysis?.daily?.maximumTemperature ?? 'N/A'}°C</p>
+                      <p>Min: {w?.analysis?.daily?.minimumTemperature ?? 'N/A'}°C</p>
                       <p>Humidity: {w?.analysis?.current?.relativeHumidity ?? 'N/A'}%</p>
                       <p>Precip: {w?.analysis?.current?.precipitation ?? 'N/A'} mm</p>
                       <p>Wind: {w?.analysis?.current?.windSpeed ?? 'N/A'} km/h</p>
                     </div>
                     <div style={{ marginBottom: '12px' }}>
                       <p className="eyebrow">HABITABILITY</p>
-                      <p>Score: {h?.data?.assessment?.score ?? 'N/A'}</p>
-                      <p>Class: {h?.data?.assessment?.category ?? 'N/A'}</p>
+                      <p>Score: {h?.assessment?.score ?? 'N/A'}</p>
+                      <p>Class: {h?.assessment?.category ?? 'N/A'}</p>
                     </div>
                     <div style={{ marginBottom: '12px' }}>
                       <p className="eyebrow">VEGETATION</p>
