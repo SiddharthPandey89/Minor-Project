@@ -142,6 +142,35 @@ const History = () => {
   const currentPrecip = data?.daily ? avg(data.daily.map((d) => d.precipitation)) : null;
   const comparePrecip = compareData?.daily ? avg(compareData.daily.map((d) => d.precipitation)) : null;
 
+  // Monthly aggregation from existing daily data
+  const monthly = (() => {
+    if (!data?.daily || data.daily.length === 0) return [];
+    const groups = {};
+    for (const d of data.daily) {
+      if (!d?.date) continue;
+      const key = d.date.slice(0, 7); // YYYY-MM
+      if (!groups[key]) groups[key] = { month: key, maxT: [], minT: [], meanT: [], precip: [], hum: [] };
+      if (Number.isFinite(d.temperatureMax)) groups[key].maxT.push(d.temperatureMax);
+      if (Number.isFinite(d.temperatureMin)) groups[key].minT.push(d.temperatureMin);
+      if (Number.isFinite(d.temperatureMean)) groups[key].meanT.push(d.temperatureMean);
+      if (Number.isFinite(d.precipitation)) groups[key].precip.push(d.precipitation);
+      if (Number.isFinite(d.humidity)) groups[key].hum.push(d.humidity);
+    }
+    const keys = Object.keys(groups).sort();
+    let prevAvg = null;
+    return keys.map((k) => {
+      const g = groups[k];
+      const avgMax = g.maxT.length ? g.maxT.reduce((a,b)=>a+b,0)/g.maxT.length : null;
+      const avgMin = g.minT.length ? g.minT.reduce((a,b)=>a+b,0)/g.minT.length : null;
+      const avgMean = g.meanT.length ? g.meanT.reduce((a,b)=>a+b,0)/g.meanT.length : null;
+      const precipTotal = g.precip.length ? g.precip.reduce((a,b)=>a+b,0) : null;
+      const avgHum = g.hum.length ? g.hum.reduce((a,b)=>a+b,0)/g.hum.length : null;
+      const change = (prevAvg !== null && avgMean !== null) ? avgMean - prevAvg : null;
+      if (avgMean !== null) prevAvg = avgMean;
+      return { month: k, avgMax, avgMin, avgMean, precipTotal, avgHum, change, obs: g.meanT.length };
+    });
+  })();
+
   return (
     <div className="dashboard">
       <div className="intro-row">
@@ -306,6 +335,44 @@ const History = () => {
                   <span className="provenance__label">CURRENT AVG PRECIP</span>
                   <strong>{currentPrecip !== null ? `${currentPrecip.toFixed(1)}mm` : 'N/A'}</strong>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {monthly.length > 0 && (
+            <div className="results-section" style={{ marginTop: '24px' }}>
+              <div className="section-heading"><h2>Monthly analysis</h2></div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--muted)' }}>
+                      <th style={{ textAlign: 'left', padding: '8px' }}>Month</th>
+                      <th style={{ textAlign: 'right', padding: '8px' }}>Avg Temp (°C)</th>
+                      <th style={{ textAlign: 'right', padding: '8px' }}>Max (°C)</th>
+                      <th style={{ textAlign: 'right', padding: '8px' }}>Min (°C)</th>
+                      <th style={{ textAlign: 'right', padding: '8px' }}>Precip (mm)</th>
+                      <th style={{ textAlign: 'right', padding: '8px' }}>Humidity (%)</th>
+                      <th style={{ textAlign: 'right', padding: '8px' }}>Change (°C)</th>
+                      <th style={{ textAlign: 'right', padding: '8px' }}>Obs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthly.map((m) => (
+                      <tr key={m.month} style={{ borderBottom: '1px solid var(--line)' }}>
+                        <td style={{ padding: '8px' }}>{m.month}</td>
+                        <td style={{ textAlign: 'right', padding: '8px' }}>{m.avgMean !== null ? m.avgMean.toFixed(2) : 'N/A'}</td>
+                        <td style={{ textAlign: 'right', padding: '8px' }}>{m.avgMax !== null ? m.avgMax.toFixed(2) : 'N/A'}</td>
+                        <td style={{ textAlign: 'right', padding: '8px' }}>{m.avgMin !== null ? m.avgMin.toFixed(2) : 'N/A'}</td>
+                        <td style={{ textAlign: 'right', padding: '8px' }}>{m.precipTotal !== null ? m.precipTotal.toFixed(1) : 'N/A'}</td>
+                        <td style={{ textAlign: 'right', padding: '8px' }}>{m.avgHum !== null ? m.avgHum.toFixed(1) : 'N/A'}</td>
+                        <td style={{ textAlign: 'right', padding: '8px', color: m.change === null ? 'var(--muted)' : m.change > 0 ? '#71e8a8' : m.change < 0 ? '#ff9da9' : 'var(--muted)' }}>
+                          {m.change === null ? 'N/A' : (m.change > 0 ? '+' : '') + m.change.toFixed(2)}
+                        </td>
+                        <td style={{ textAlign: 'right', padding: '8px' }}>{m.obs}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
