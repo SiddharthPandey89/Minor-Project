@@ -18,19 +18,34 @@ const NdviMonitoring = () => {
   const run = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setResult(null);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120000);
     try {
       const res = await fetch(`${API_BASE_URL}/api/satellite/timeseries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ latitude: Number(lat), longitude: Number(lon), start_date: startDate, end_date: endDate, area_km2: 1, max_cloud: 60 }),
+        signal: controller.signal,
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await res.text();
+        throw new Error(`Expected JSON but received ${contentType || 'unknown'}. ${res.status} ${res.statusText}. ${text.slice(0, 120)}`);
+      }
       const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.message || 'NDVI timeseries failed.');
+      if (!res.ok || !json || !json.success) throw new Error((json && json.message) || 'NDVI timeseries failed.');
+      if (!json.data) throw new Error('Unexpected response structure: missing data.');
       setResult(json.data);
     } catch (err) {
-      setError(err.message || 'Failed.');
+      if (err.name === 'AbortError') {
+        setError('Request timed out. Satellite processing may take longer; try a smaller date range.');
+      } else {
+        setError(err.message || 'Failed to retrieve NDVI data.');
+      }
       setResult(null);
     } finally {
+      clearTimeout(timer);
       setLoading(false);
     }
   }, [lat, lon, startDate, endDate]);
