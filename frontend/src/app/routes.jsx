@@ -12,6 +12,7 @@ const Dashboard = lazy(() => import('../pages/Dashboard.jsx'));
 const Analysis = lazy(() => import('../pages/Analysis.jsx'));
 const Explore = lazy(() => import('../pages/Explore.jsx'));
 const History = lazy(() => import('../pages/History.jsx'));
+const RiskAssessment = lazy(() => import('../pages/RiskAssessment.jsx'));
 const NdviMonitoring = lazy(() => import('../pages/NdviMonitoring.jsx'));
 const Compare = lazy(() => import('../pages/Compare.jsx'));
 const Reports = lazy(() => import('../pages/Reports.jsx'));
@@ -39,6 +40,10 @@ const router = createBrowserRouter(
     {
       path: '/history',
       element: <History />,
+    },
+    {
+      path: '/risk',
+      element: <RiskAssessment />,
     },
     {
       path: '/ndvi',

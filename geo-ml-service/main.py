@@ -29,6 +29,7 @@ from app.api.routes.soil import router as soil_router
 from app.api.routes.vegetation import router as vegetation_router
 from app.api.routes.elevation import router as elevation_router
 from app.api.routes.patterns import router as patterns_router
+from app.api.routes.risk import router as risk_router
 
 # Validated once at import time; invalid configuration stops startup.
 settings = get_settings()
@@ -85,6 +86,7 @@ app.include_router(vegetation_router)
 app.include_router(habitability_router)
 app.include_router(elevation_router)
 app.include_router(patterns_router)
+app.include_router(risk_router)
 
 
 @app.exception_handler(Exception)
