@@ -7,6 +7,7 @@ import habitabilityRouter from './routes/habitability.routes.js';
 import aiRouter from './routes/ai.routes.js';
 import elevationRouter from './routes/elevation.routes.js';
 import anomaliesRouter from './routes/anomalies.routes.js';
+import satelliteRouter from './routes/satellite.routes.js';
 
 const app = express();
 
@@ -71,5 +72,6 @@ app.use('/api/habitability', habitabilityRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/elevation', elevationRouter);
 app.use('/api/anomalies', anomaliesRouter);
+app.use('/api/satellite', satelliteRouter);
 
 export default app;

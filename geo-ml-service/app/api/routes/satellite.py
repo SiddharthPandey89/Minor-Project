@@ -424,6 +424,101 @@ async def analyze_satellite_vegetation(
     )
 
 
+class SatelliteTimeSeriesRequest(BaseModel):
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    start_date: str = Field(..., description="Start date YYYY-MM-DD")
+    end_date: str = Field(..., description="End date YYYY-MM-DD")
+    area_km2: float = Field(1.0, ge=0.1, le=50.0)
+    max_cloud: float = Field(60.0, ge=0, le=100)
+
+
+@router.post(
+    "/timeseries",
+    summary="Sentinel-2 NDVI time series over a date range",
+)
+async def satellite_timeseries(request: SatelliteTimeSeriesRequest) -> dict[str, Any]:
+    from datetime import date as _date
+
+    bbox, bounds = _region_bbox(request.latitude, request.longitude, request.area_km2)
+
+    try:
+        start = _date.fromisoformat(request.start_date)
+        end = _date.fromisoformat(request.end_date)
+    except ValueError:
+        return {"success": False, "message": "Invalid date format. Use YYYY-MM-DD."}
+
+    if start > end:
+        return {"success": False, "message": "start_date must be before end_date."}
+
+    from app.ingestion.copernicus.sentinel import CopernicusSentinelClient, IngestionError
+    from app.ingestion.copernicus.sentinel import DateRange as _DR
+
+    try:
+        result = CopernicusSentinelClient().search_products(
+            bbox=bbox,
+            collections=("sentinel-2-l2a",),
+            date_range=_DR.from_values(start, end),
+            cloud_cover_max=request.max_cloud,
+            limit=100,
+        )
+    except IngestionError as exc:
+        return {"success": False, "message": f"Satellite search failed: {exc}"}
+
+    if result is None or not result.records:
+        return {"success": False, "message": "No Sentinel-2 scenes found in the requested date range."}
+
+    scenes = _select_scenes(list(result.records), "Copernicus Data Space", 50, request.max_cloud)
+    if not scenes:
+        return {"success": False, "message": "No usable scenes (cloud/missing bands)."}
+
+    observations = []
+    for scene in scenes:
+        ndvi_result = await asyncio.to_thread(_compute_scene_ndvi, scene, bounds=bounds)
+        if ndvi_result is None:
+            continue
+        obs_date = scene.get("properties", {}).get("datetime")
+        cloud = scene.get("properties", {}).get("eo:cloud_cover")
+        observations.append({
+            "date": str(obs_date),
+            "ndvi_mean": ndvi_result["mean"],
+            "ndvi_median": ndvi_result["median"],
+            "ndvi_min": ndvi_result["minimum"],
+            "ndvi_max": ndvi_result["maximum"],
+            "valid_pixels": ndvi_result["valid_pixels"],
+            "cloud_cover": cloud,
+        })
+
+    if not observations:
+        return {"success": False, "message": "NDVI could not be computed for any scene."}
+
+    # monthly aggregation
+    groups = {}
+    for o in observations:
+        key = o["date"][:7]
+        groups.setdefault(key, []).append(o)
+    monthly = []
+    for k in sorted(groups):
+        vals = [o["ndvi_mean"] for o in groups[k]]
+        monthly.append({
+            "month": k,
+            "ndvi_mean": float(sum(vals) / len(vals)),
+            "ndvi_min": float(min(o["ndvi_min"] for o in groups[k])),
+            "ndvi_max": float(max(o["ndvi_max"] for o in groups[k])),
+            "observations": len(vals),
+        })
+
+    return {
+        "success": True,
+        "data": {
+            "region": {"latitude": request.latitude, "longitude": request.longitude, "area_km2": request.area_km2},
+            "observations": observations,
+            "monthly": monthly,
+            "data_source": "Sentinel-2 L2A (Element84/Copernicus STAC)",
+        },
+    }
+
+
 @router.get("/health", tags=["satellite"], summary="Check satellite vegetation service")
 async def satellite_health() -> dict[str, str | bool]:
     return {
