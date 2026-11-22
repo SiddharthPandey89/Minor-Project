@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { API_BASE_URL } from '../utils/constants.js';
 import Card from '../components/common/Card.jsx';
 import Loader from '../components/common/Loader.jsx';
@@ -20,13 +20,26 @@ const Tip = ({ text }) => (
 );
 
 const NdviMonitoring = () => {
-  const [lat, setLat] = useState('23.2599');
-  const [lon, setLon] = useState('77.4126');
+  const [lat, setLat] = useState('');
+  const [lon, setLon] = useState('');
   const [startDate, setStartDate] = useState('2025-06-01');
   const [endDate, setEndDate] = useState('2025-09-01');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('terrax_selected_location');
+      if (raw) {
+        const loc = JSON.parse(raw);
+        if (loc && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)) {
+          setLat(String(loc.latitude));
+          setLon(String(loc.longitude));
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }, []);
 
   const run = useCallback(async () => {
     setLoading(true);
@@ -119,6 +132,7 @@ const NdviMonitoring = () => {
       {/* Controls */}
       <Card style={{ marginBottom: '20px' }}>
         <Card.Body>
+          {(!lat || !lon) && <p style={{ color: 'var(--muted)', fontSize: '0.8rem', marginBottom: '8px' }}>No location selected. Search and analyze a location on the Dashboard first, or enter coordinates manually.</p>}
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
             <input value={lat} onChange={(e) => setLat(e.target.value)} placeholder="Latitude" style={{ padding: '8px', background: '#081523', border: '1px solid var(--line)', color: '#e9f2fb', borderRadius: '6px', width: '120px' }} />
             <input value={lon} onChange={(e) => setLon(e.target.value)} placeholder="Longitude" style={{ padding: '8px', background: '#081523', border: '1px solid var(--line)', color: '#e9f2fb', borderRadius: '6px', width: '120px' }} />
