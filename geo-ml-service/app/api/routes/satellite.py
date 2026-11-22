@@ -442,33 +442,33 @@ async def satellite_timeseries(request: SatelliteTimeSeriesRequest) -> dict[str,
 
     bbox, bounds = _region_bbox(request.latitude, request.longitude, request.area_km2)
 
-    try:
-        start = _date.fromisoformat(request.start_date)
-        end = _date.fromisoformat(request.end_date)
-    except ValueError:
-        return {"success": False, "message": "Invalid date format. Use YYYY-MM-DD."}
-
-    if start > end:
-        return {"success": False, "message": "start_date must be before end_date."}
-
-    from app.ingestion.copernicus.sentinel import CopernicusSentinelClient, IngestionError
+    from app.ingestion.registry import request_json, BoundingBox as _BB
     from app.ingestion.copernicus.sentinel import DateRange as _DR
-
+    payload = {
+        "bbox": bbox.as_list() if hasattr(bbox, "as_list") else [bbox.west, bbox.south, bbox.east, bbox.north],
+        "collections": ["sentinel-2-l2a"],
+        "datetime": f"{request.start_date}T00:00:00Z/{request.end_date}T23:59:59Z",
+        "limit": 100,
+        "query": {"eo:cloud_cover": {"lte": request.max_cloud}},
+    }
     try:
-        result = CopernicusSentinelClient().search_products(
-            bbox=bbox,
-            collections=("sentinel-2-l2a",),
-            date_range=_DR.from_values(start, end),
-            cloud_cover_max=request.max_cloud,
-            limit=100,
+        response, _ = request_json(
+            "https://earth-search.aws.element84.com/v1/search",
+            provider="element84-earth-search",
+            method="POST",
+            payload=payload,
+            timeout=30,
+            retries=2,
         )
-    except IngestionError as exc:
+    except Exception as exc:
         return {"success": False, "message": f"Satellite search failed: {exc}"}
 
-    if result is None or not result.records:
-        return {"success": False, "message": "No Sentinel-2 scenes found in the requested date range."}
+    if not isinstance(response, dict) or not isinstance(response.get("features"), list):
+        return {"success": False, "message": "Invalid satellite response."}
 
-    scenes = _select_scenes(list(result.records), "Copernicus Data Space", 50, request.max_cloud)
+    scenes = _select_scenes(list(response["features"]), "Element 84 Earth Search", 50, request.max_cloud)
+    from app.api.routes.vegetation import _asset_hosts_are_routable as _routable
+    scenes = [s for s in scenes if _routable(s)]
     if not scenes:
         return {"success": False, "message": "No usable scenes (cloud/missing bands)."}
 
