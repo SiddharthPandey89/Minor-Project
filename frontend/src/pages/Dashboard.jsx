@@ -8,9 +8,6 @@ import DashboardPanel from '../components/dashboard/Dashboard.jsx';
 import Loader from '../components/common/Loader.jsx';
 import ErrorMessage from '../components/common/ErrorMessage.jsx';
 import { searchPlaces, requestWeatherAnalysis, requestHabitabilityAnalysis, requestElevationAnalysis } from '../services/analysisService.js';
-import NdviMonitoring from './NdviMonitoring.jsx';
-import RiskAssessment from './RiskAssessment.jsx';
-import LandCover from './LandCover.jsx';
 import { formatMatchType } from '../utils/formatters.js';
 import { useDebounce } from '../hooks/useDebounce.js';
 import { SEARCH_MIN_QUERY_LENGTH } from '../utils/constants.js';
@@ -93,7 +90,6 @@ export default function Dashboard() {
   const [soilLoading, setSoilLoading] = useState(false);
   const [vegetationLoading, setVegetationLoading] = useState(false);
   const [elevationLoading, setElevationLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("weather");
   const [ndviLoading, setNdviLoading] = useState(false);
   const [riskLoading, setRiskLoading] = useState(false);
   const [landcoverLoading, setLandcoverLoading] = useState(false);
@@ -390,17 +386,7 @@ export default function Dashboard() {
             <Footer />
           </div>
         </div>
-                        <section style={{ marginTop: '20px' }}>
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
-            {['weather','soil','vegetation','elevation','ndvi','risk','landcover'].map((t) => (
-              <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--line)', background: activeTab === t ? 'linear-gradient(135deg, var(--cyan,#7de3ff), #3b82f6)' : 'transparent', color: activeTab === t ? '#07111e' : 'var(--cyan,#7de3ff)', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase' }}>{t}</button>
-            ))}
-          </div>
-          {activeTab === 'ndvi' && <NdviMonitoring />}
-          {activeTab === 'risk' && <RiskAssessment />}
-          {activeTab === 'landcover' && <LandCover />}
-        </section>
-      </main>
+                      </main>
     </div>
   );
 }
