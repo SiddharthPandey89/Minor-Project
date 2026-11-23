@@ -9,6 +9,7 @@ import elevationRouter from './routes/elevation.routes.js';
 import anomaliesRouter from './routes/anomalies.routes.js';
 import satelliteRouter from './routes/satellite.routes.js';
 import riskRouter from './routes/risk.routes.js';
+import landcoverRouter from './routes/landcover.routes.js';
 
 const app = express();
 
@@ -75,5 +76,6 @@ app.use('/api/elevation', elevationRouter);
 app.use('/api/anomalies', anomaliesRouter);
 app.use('/api/satellite', satelliteRouter);
 app.use('/api/risk', riskRouter);
+app.use('/api/landcover', landcoverRouter);
 
 export default app;
