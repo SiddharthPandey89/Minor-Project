@@ -8,6 +8,7 @@ import DashboardPanel from '../components/dashboard/Dashboard.jsx';
 import Loader from '../components/common/Loader.jsx';
 import ErrorMessage from '../components/common/ErrorMessage.jsx';
 import { searchPlaces, requestWeatherAnalysis, requestHabitabilityAnalysis, requestElevationAnalysis } from '../services/analysisService.js';
+import { API_BASE_URL } from '../utils/constants.js';
 import { formatMatchType } from '../utils/formatters.js';
 import { useDebounce } from '../hooks/useDebounce.js';
 import { SEARCH_MIN_QUERY_LENGTH } from '../utils/constants.js';
@@ -83,10 +84,16 @@ export default function Dashboard() {
   }, [selectedLocation]);
   const [habitability, setHabitability] = useState(null);
   const [elevation, setElevation] = useState(null);
+  const [ndviData, setNdviData] = useState(null);
+  const [riskData, setRiskData] = useState(null);
+  const [landcoverData, setLandcoverData] = useState(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [soilLoading, setSoilLoading] = useState(false);
   const [vegetationLoading, setVegetationLoading] = useState(false);
   const [elevationLoading, setElevationLoading] = useState(false);
+  const [ndviLoading, setNdviLoading] = useState(false);
+  const [riskLoading, setRiskLoading] = useState(false);
+  const [landcoverLoading, setLandcoverLoading] = useState(false);
   const [weatherError, setWeatherError] = useState('');
   const [habitabilityError, setHabitabilityError] = useState('');
   const [elevationError, setElevationError] = useState('');
@@ -221,12 +228,31 @@ export default function Dashboard() {
         setElevation(null);
         setElevationError(elevationResult.reason?.message || 'Elevation analysis request failed.');
       }
+
+      // NDVI / Risk / LandCover (best-effort)
+      setNdviLoading(true);
+      setRiskLoading(true);
+      setLandcoverLoading(true);
+      const [ndviR, riskR, lcR] = await Promise.allSettled([
+        fetch(`${API_BASE_URL}/api/satellite/timeseries`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ latitude: selectedLocation.latitude, longitude: selectedLocation.longitude, start_date: '2025-06-01', end_date: '2025-09-01', area_km2: 1, max_cloud: 60 }) }).then((r) => r.json()),
+        fetch(`${API_BASE_URL}/api/risk`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ latitude: selectedLocation.latitude, longitude: selectedLocation.longitude }) }).then((r) => r.json()),
+        fetch(`${API_BASE_URL}/api/landcover`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ latitude: selectedLocation.latitude, longitude: selectedLocation.longitude, radius_km: 5 }) }).then((r) => r.json()),
+      ]);
+      if (ndviR.status === 'fulfilled' && ndviR.value?.success) setNdviData(ndviR.value.data);
+      else setNdviData(null);
+      if (riskR.status === 'fulfilled' && riskR.value?.success) setRiskData(riskR.value.data);
+      else setRiskData(null);
+      if (lcR.status === 'fulfilled' && lcR.value?.success) setLandcoverData(lcR.value.data);
+      else setLandcoverData(null);
     } finally {
       if (!controller.signal.aborted) {
         setWeatherLoading(false);
         setElevationLoading(false);
         setSoilLoading(false);
         setVegetationLoading(false);
+        setNdviLoading(false);
+        setRiskLoading(false);
+        setLandcoverLoading(false);
         analysisControllerRef.current = null;
       }
     }
@@ -361,6 +387,18 @@ export default function Dashboard() {
             <Footer />
           </div>
         </div>
+        <section style={{ marginTop: '20px' }}>
+          <h2>Satellite Intelligence</h2>
+          {ndviLoading && <p>Loading NDVI...</p>}
+          {ndviData && <p>Latest NDVI: {ndviData.observations?.length ? ndviData.observations[ndviData.observations.length-1].ndvi_mean?.toFixed(4) : 'N/A'} · {ndviData.data_source}</p>}
+          {landcoverLoading && <p>Loading land cover...</p>}
+          {landcoverData && <p>Dominant: {landcoverData.dominant_class} · Area: {landcoverData.total_analyzed_area_km2} km²</p>}
+        </section>
+        <section style={{ marginTop: '20px' }}>
+          <h2>Environmental Risk</h2>
+          {riskLoading && <p>Loading risk...</p>}
+          {riskData && <p>Overall: {riskData.overall?.score?.toFixed(1)} ({riskData.overall?.severity}) · Flood: {riskData.flood?.score} · Heat: {riskData.heat?.score} · Drought: {riskData.drought?.score}</p>}
+        </section>
       </main>
     </div>
   );
