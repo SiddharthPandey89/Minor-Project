@@ -388,16 +388,46 @@ export default function Dashboard() {
           </div>
         </div>
         <section style={{ marginTop: '20px' }}>
-          <h2>Satellite Intelligence</h2>
+          <h2>Satellite Intelligence - NDVI</h2>
           {ndviLoading && <p>Loading NDVI...</p>}
-          {ndviData && <p>Latest NDVI: {ndviData.observations?.length ? ndviData.observations[ndviData.observations.length-1].ndvi_mean?.toFixed(4) : 'N/A'} Â· {ndviData.data_source}</p>}
+          {ndviData && (
+            <div>
+              <p>Latest NDVI: {ndviData.observations?.length ? ndviData.observations[ndviData.observations.length-1].ndvi_mean?.toFixed(4) : 'N/A'} ({ndviData.observations?.length ? ndviData.observations[ndviData.observations.length-1].date : ''})</p>
+              <p>Observations: {ndviData.observations?.length ?? 0} · Source: {ndviData.data_source}</p>
+              {ndviData.monthly && ndviData.monthly.length > 0 && (
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.78rem', marginTop:'8px' }}>
+                  <thead><tr style={{ borderBottom:'1px solid var(--line)', color:'var(--muted)' }}><th style={{textAlign:'left',padding:'6px'}}>Month</th><th style={{textAlign:'right',padding:'6px'}}>NDVI Mean</th><th style={{textAlign:'right',padding:'6px'}}>Obs</th></tr></thead>
+                  <tbody>{ndviData.monthly.map((m,i)=>(<tr key={i} style={{borderBottom:'1px solid var(--line)'}}><td style={{padding:'6px'}}>{m.month}</td><td style={{textAlign:'right',padding:'6px'}}>{m.ndvi_mean?.toFixed(4)}</td><td style={{textAlign:'right',padding:'6px'}}>{m.observations}</td></tr>))}</tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </section>
+        <section style={{ marginTop: '20px' }}>
+          <h2>Satellite Intelligence - Land Cover</h2>
           {landcoverLoading && <p>Loading land cover...</p>}
-          {landcoverData && <p>Dominant: {landcoverData.dominant_class} Â· Area: {landcoverData.total_analyzed_area_km2} kmÂ²</p>}
+          {landcoverData && (
+            <div>
+              <p>Dominant: {landcoverData.dominant_class} · Area: {landcoverData.total_analyzed_area_km2} km² · Classes: {landcoverData.num_classes}</p>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.78rem', marginTop:'8px' }}>
+                <thead><tr style={{ borderBottom:'1px solid var(--line)', color:'var(--muted)' }}><th style={{textAlign:'left',padding:'6px'}}>Class</th><th style={{textAlign:'right',padding:'6px'}}>Area km²</th><th style={{textAlign:'right',padding:'6px'}}>%</th></tr></thead>
+                <tbody>{landcoverData.classes.map((c,i)=>(<tr key={i} style={{borderBottom:'1px solid var(--line)'}}><td style={{padding:'6px'}}>{c.name}</td><td style={{textAlign:'right',padding:'6px'}}>{c.area_km2}</td><td style={{textAlign:'right',padding:'6px'}}>{c.percentage}%</td></tr>))}</tbody>
+              </table>
+              <p style={{ color:'var(--muted)', fontSize:'0.72rem', marginTop:'6px' }}>Dataset: {landcoverData.dataset} · {landcoverData.resolution_m}m · {landcoverData.source}</p>
+            </div>
+          )}
         </section>
         <section style={{ marginTop: '20px' }}>
           <h2>Environmental Risk</h2>
           {riskLoading && <p>Loading risk...</p>}
-          {riskData && <p>Overall: {riskData.overall?.score?.toFixed(1)} ({riskData.overall?.severity}) Â· Flood: {riskData.flood?.score} Â· Heat: {riskData.heat?.score} Â· Drought: {riskData.drought?.score}</p>}
+          {riskData && (
+            <div>
+              <p>Overall: {riskData.overall?.score?.toFixed(1)} ({riskData.overall?.severity}) · {riskData.overall?.available_categories}/{riskData.overall?.total_categories} categories</p>
+              <p>Flood: {riskData.flood?.score} ({riskData.flood?.severity}) · Heat: {riskData.heat?.score} ({riskData.heat?.severity}) · Drought: {riskData.drought?.score} ({riskData.drought?.severity})</p>
+              <ul style={{ color:'var(--muted)', fontSize:'0.78rem' }}>{(riskData.flood?.factors||[]).concat(riskData.heat?.factors||[], riskData.drought?.factors||[]).map((f,i)=><li key={i}>{f}</li>)}</ul>
+              <p style={{ color:'var(--muted)', fontSize:'0.72rem' }}>Sources: {riskData.data_sources?.join(', ')}</p>
+            </div>
+          )}
         </section>
       </main>
     </div>
