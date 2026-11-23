@@ -93,6 +93,7 @@ export default function Dashboard() {
   const [soilLoading, setSoilLoading] = useState(false);
   const [vegetationLoading, setVegetationLoading] = useState(false);
   const [elevationLoading, setElevationLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("weather");
   const [ndviLoading, setNdviLoading] = useState(false);
   const [riskLoading, setRiskLoading] = useState(false);
   const [landcoverLoading, setLandcoverLoading] = useState(false);
@@ -389,14 +390,15 @@ export default function Dashboard() {
             <Footer />
           </div>
         </div>
-                <section id="ndvi-monitoring" style={{ marginTop: '20px' }}>
-          <NdviMonitoring />
-        </section>
-        <section id="land-cover-analysis" style={{ marginTop: '20px' }}>
-          <LandCover />
-        </section>
-        <section id="risk-assessment" style={{ marginTop: '20px' }}>
-          <RiskAssessment />
+                        <section style={{ marginTop: '20px' }}>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
+            {['weather','soil','vegetation','elevation','ndvi','risk','landcover'].map((t) => (
+              <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--line)', background: activeTab === t ? 'linear-gradient(135deg, var(--cyan,#7de3ff), #3b82f6)' : 'transparent', color: activeTab === t ? '#07111e' : 'var(--cyan,#7de3ff)', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase' }}>{t}</button>
+            ))}
+          </div>
+          {activeTab === 'ndvi' && <NdviMonitoring />}
+          {activeTab === 'risk' && <RiskAssessment />}
+          {activeTab === 'landcover' && <LandCover />}
         </section>
       </main>
     </div>
