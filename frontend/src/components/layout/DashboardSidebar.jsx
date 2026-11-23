@@ -9,6 +9,9 @@ const SIDEBAR_ITEMS = [
   { id: 'vegetation-analysis', label: 'Vegetation Analysis', icon: '🌿' },
   { id: 'elevation-terrain', label: 'Elevation / Terrain', icon: '⛰️' },
   { id: 'habitability-assessment', label: 'Habitability Assessment', icon: '📊' },
+  { id: 'ndvi-monitoring', label: 'NDVI Monitoring', icon: '🌿' },
+  { id: 'risk-assessment', label: 'Risk Assessment', icon: '⚠️' },
+  { id: 'land-cover-analysis', label: 'Land Cover Analysis', icon: '🗺️' },
 ];
 
 export default function DashboardSidebar({ className = '', isOpen = false, onToggle }) {

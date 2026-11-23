@@ -387,7 +387,7 @@ export default function Dashboard() {
             <Footer />
           </div>
         </div>
-        <section style={{ marginTop: '20px' }}>
+        <section id="ndvi-monitoring" style={{ marginTop: '20px' }}>
           <h2>Satellite Intelligence - NDVI</h2>
           {ndviLoading && <p>Loading NDVI...</p>}
           {ndviData && (
@@ -403,7 +403,7 @@ export default function Dashboard() {
             </div>
           )}
         </section>
-        <section style={{ marginTop: '20px' }}>
+        <section id="land-cover-analysis" style={{ marginTop: '20px' }}>
           <h2>Satellite Intelligence - Land Cover</h2>
           {landcoverLoading && <p>Loading land cover...</p>}
           {landcoverData && (
@@ -417,7 +417,7 @@ export default function Dashboard() {
             </div>
           )}
         </section>
-        <section style={{ marginTop: '20px' }}>
+        <section id="risk-assessment" style={{ marginTop: '20px' }}>
           <h2>Environmental Risk</h2>
           {riskLoading && <p>Loading risk...</p>}
           {riskData && (
