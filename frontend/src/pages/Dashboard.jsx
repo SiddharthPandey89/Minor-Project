@@ -42,6 +42,31 @@ export default function Dashboard() {
   const location = useLocation();
   const [query, setQuery] = useState('');
   const [label, setLabel] = useState('');
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('terrax_selected_location');
+      if (raw) {
+        const loc = JSON.parse(raw);
+        if (loc && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)) {
+          setSelectedLocation(loc);
+          if (loc.name) setLabel(loc.name);
+        }
+      }
+    } catch (e) { /* ignore */ }
+    // restore analysis
+    try {
+      const raw2 = localStorage.getItem('terrax_dashboard_analysis');
+      if (raw2) {
+        const a = JSON.parse(raw2);
+        if (a) {
+          if (a.analysis) setAnalysis(a.analysis);
+          if (a.habitability) setHabitability(a.habitability);
+          if (a.elevation) setElevation(a.elevation);
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }, []);
   const [suggestions, setSuggestions] = useState([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
@@ -252,6 +277,10 @@ export default function Dashboard() {
         setNdviLoading(false);
         setRiskLoading(false);
         setLandcoverLoading(false);
+        // persist
+        try {
+          localStorage.setItem('terrax_dashboard_analysis', JSON.stringify({ analysis, habitability, elevation }));
+        } catch (e) { /* ignore */ }
         analysisControllerRef.current = null;
       }
     }
