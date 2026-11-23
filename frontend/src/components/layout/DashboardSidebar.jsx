@@ -1,14 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 const SIDEBAR_ITEMS = [
-  { id: 'location-search', label: 'Location Search', icon: '⌕' },
-  { id: 'map-view', label: 'Map', icon: '🌍' },
-  { id: 'weather-analysis', label: 'Weather Analysis', icon: '🌡️' },
-  { id: 'soil-analysis', label: 'Soil Analysis', icon: '🌱' },
-  { id: 'vegetation-analysis', label: 'Vegetation Analysis', icon: '🌿' },
-  { id: 'elevation-terrain', label: 'Elevation / Terrain', icon: '⛰️' },
-  { id: 'habitability-assessment', label: 'Habitability Assessment', icon: '📊' },
+  { id: 'location-search', label: 'Location Search', icon: '⌕', type: 'scroll' },
+  { id: 'map-view', label: 'Map', icon: '🌍', type: 'scroll' },
+  { id: 'weather-analysis', label: 'Weather Analysis', icon: '🌡️', type: 'scroll' },
+  { id: 'soil-analysis', label: 'Soil Analysis', icon: '🌱', type: 'scroll' },
+  { id: 'vegetation-analysis', label: 'Vegetation Analysis', icon: '🌿', type: 'scroll' },
+  { id: 'elevation-terrain', label: 'Elevation / Terrain', icon: '⛰️', type: 'scroll' },
+  { id: 'habitability-assessment', label: 'Habitability Assessment', icon: '📊', type: 'scroll' },
+  { id: 'ndvi-monitoring', label: 'NDVI Monitoring', icon: '🛰️', type: 'route', path: '/ndvi' },
+  { id: 'risk-assessment', label: 'Risk Assessment', icon: '⚠️', type: 'route', path: '/risk' },
+  { id: 'land-cover-analysis', label: 'Land Cover Analysis', icon: '🗺️', type: 'route', path: '/landcover' },
 ];
 
 export default function DashboardSidebar({ className = '', isOpen = false, onToggle }) {
@@ -27,12 +30,18 @@ export default function DashboardSidebar({ className = '', isOpen = false, onTog
     (item) => location.hash === `#${item.id}` || location.pathname.endsWith(`#${item.id}`),
   )?.id;
 
-  const handleItemClick = (id) => {
+  const navigate = useNavigate();
+
+  const handleItemClick = (item) => {
     if (isMobile && onToggle) {
       onToggle();
     }
-    window.location.hash = `#${id}`;
-    const element = document.getElementById(id);
+    if (item.type === 'route') {
+      navigate(item.path);
+      return;
+    }
+    window.location.hash = `#${item.id}`;
+    const element = document.getElementById(item.id);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -58,7 +67,7 @@ export default function DashboardSidebar({ className = '', isOpen = false, onTog
                 <button
                   type="button"
                   className={`dashboard-sidebar__item${isActive ? ' is-active' : ''}`}
-                  onClick={() => handleItemClick(item.id)}
+                  onClick={() => handleItemClick(item)}
                   aria-pressed={isActive}
                 >
                   <span className="dashboard-sidebar__icon" aria-hidden="true">
